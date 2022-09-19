@@ -1,2 +1,5 @@
 # template-validation-portal-service
-Repo for backend service of Data upload and Validation tool
+
+Repository for backend service of Data upload and Validation tool
+
+Code pushes to be done in the `dev` branch only.
