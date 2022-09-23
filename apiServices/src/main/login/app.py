@@ -22,7 +22,7 @@ else:
 @app.route("/api/v1/authenticate", methods = ['POST'])
 def login():
     req_body = request.get_json()
-    savedUSERNAME = os.environ.get('user')
+    savedUSERNAME = os.environ.get('email')
     savedPASSWORD = os.environ.get('password')
     userName = req_body['email']
     password = hashlib.md5(req_body['password'].encode('utf-8'))
@@ -45,3 +45,4 @@ def login():
 
 if (__name__ == '__main__'):
     app.run(debug=False)
+    
