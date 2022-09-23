@@ -24,13 +24,13 @@ def login():
     req_body = request.get_json()
     savedUSERNAME = os.environ.get('user')
     savedPASSWORD = os.environ.get('password')
-    userName = req_body['userName']
+    userName = req_body['email']
     password = hashlib.md5(req_body['password'].encode('utf-8'))
 
     if(userName==savedUSERNAME and password.hexdigest()==savedPASSWORD):
         message = {
             'iss': '',
-            'user': savedUSERNAME
+            'email': savedUSERNAME
             }
         signing_key = os.environ.get("SECRET_KEY")
         encoded_jwt = jwt.encode({'message': message}, signing_key, algorithm='HS256')
