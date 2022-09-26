@@ -5,9 +5,10 @@ from dotenv import load_dotenv
 import json
 import hashlib
 import jwt
-
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 dotenv_path = os.path.join(BASE_DIR, '.env')  # just an e.g
 
@@ -28,6 +29,7 @@ def login():
     password = hashlib.md5(req_body['password'].encode('utf-8'))
 
     if(userName==savedUSERNAME and password.hexdigest()==savedPASSWORD):
+        # Exipry and other details can be added here
         message = {
             'iss': '',
             'email': savedUSERNAME
