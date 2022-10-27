@@ -1,13 +1,13 @@
 #write your code
-from flask import Flask, request
-import os
+from flask import Flask, request , send_from_directory
+import os,time
 from dotenv import load_dotenv
-import json
-import hashlib
+import json 
+import hashlib 
 import jwt
 from flask_cors import CORS
-
-app = Flask(__name__)
+STATIC_PATH = os.path.join(os.getcwd(),"tmp")
+app = Flask(__name__,static_url_path="/tmp/")
 CORS(app)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 dotenv_path = os.path.join(BASE_DIR, '.env')  # just an e.g
@@ -44,6 +44,16 @@ def login():
     else:
         return {"status" : 404,"code" : "Error","errorFlag" : True,"error" : ["Username / Password Doesn't Match"],"response" : {
             "accessToken" : "" }}
+
+@app.route("/api/v1/download/sampleTemplate", methods = ['GET'])
+def sample():
+    templateList = os.environ.get('templateList').split(",")
+    templateListResp = []
+    for i in templateList:
+        templateListResp.append({"templateName" : i, "templateLink" : os.environ.get(i)})
+
+    return {"status" : 200,"code" : "OK" , "result" : {"templateLinks" : templateListResp}}
+
 
 if (__name__ == '__main__'):
     app.run(debug=False)
