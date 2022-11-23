@@ -1,11 +1,30 @@
 #write your code
-from flask import Flask, request , send_from_directory
-import os,time
+from flask import Flask, request , send_from_directory, jsonify
+import os,time,sys
 from dotenv import load_dotenv
 import json 
 import hashlib 
 import jwt
 from flask_cors import CORS
+import numpy as np
+import datetime
+
+sys.path.append('../../..')
+sys.path.append('../../../backend/src/main/modules/')
+from backend.src.main.modules.xlsxObject import xlsxObject
+
+
+def myconverter(obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, datetime.datetime):
+            return obj.__str__()
+
+
 STATIC_PATH = os.path.join(os.getcwd(),"tmp")
 app = Flask(__name__,static_url_path="/tmp/")
 CORS(app)
@@ -18,7 +37,6 @@ else:
     import sys
     print('".env" is missing.')
     sys.exit(1)
-
 
 @app.route("/api/v1/authenticate", methods = ['POST'])
 def login():
@@ -93,6 +111,7 @@ def upload():
 
         
         return {"status" : 404,"code" : "File Error." , "result" : {"templateLinks" : ""}}
+        
 @app.route("/api/v1/validate", methods = ['POST'])
 def validate():
     req_body = request.get_json()
@@ -100,13 +119,17 @@ def validate():
     templateCode = req_body['templateCode']
 
     basicErrors = basicValidation(templateFolderPath,templateCode)
-    advancedErrors = advancedValidation(templateFolderPath,templateCode)
+    # advancedErrors = advancedValidation(templateFolderPath,templateCode)
 
-
-    return {"status" : 200,"code" : "OK" , "result" : {"basicErrors" : basicErrors,"advancedErrors" : advancedErrors}}
-
+    if basicErrors.success:
+        valErr = basicErrors.basicCondition()
+        advValErr = basicErrors.customCondition()
+        return {"status" : 200,"code" : "OK" , "result" : {"basicErrors" : valErr,"advancedErrors" : advValErr}}
+    else:
+        return {"status" : 404,"code" : "ERROR" , "result" :{},"message":"Please check template id"}
 def basicValidation(templateFolderPath,templateCode):
-    return {"errors" : ["a","b","c"]}
+    return xlsxObject(templateCode, templateFolderPath)
+
 
 def advancedValidation(templateFolderPath,templateCode):
     return {"errors" : ["a","b","c"]}
