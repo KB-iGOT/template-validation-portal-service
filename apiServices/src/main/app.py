@@ -106,8 +106,8 @@ def upload():
 
             except Exception as e:
                 print(e)
-                return {"status" : 500,"code" : "Server Error." , "result" : {"templatePath" : ""}}
-            return {"status" : 200,"code" : "OK" , "result" : {"templatePath" : "./tmp/"+finalFileName,"templateName" : finalFileName}}
+                return {"status" : 500,"code" : "Server Error" , "result" : {"templatePath" : ""}}
+            return {"status" : 200,"code" : "OK" , "result" : {"templatePath" : os.path.join(STATIC_PATH, finalFileName),"templateName" : finalFileName}}
 
         
         return {"status" : 404,"code" : "File Error." , "result" : {"templateLinks" : ""}}
