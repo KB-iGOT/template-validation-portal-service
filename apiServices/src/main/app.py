@@ -38,7 +38,7 @@ else:
     print('".env" is missing.')
     sys.exit(1)
 
-@app.route("/api/v1/authenticate", methods = ['POST'])
+@app.route("/template/api/v1/authenticate", methods = ['POST'])
 def login():
     req_body = request.get_json()
     savedUSERNAME = os.environ.get('email')
@@ -63,7 +63,7 @@ def login():
         return {"status" : 404,"code" : "Error","errorFlag" : True,"error" : ["Username / Password Doesn't Match"],"response" : {
             "accessToken" : "" }}
 
-@app.route("/api/v1/download/sampleTemplate", methods = ['GET'])
+@app.route("/template/api/v1/download/sampleTemplate", methods = ['GET'])
 def sample():
     templateList = os.environ.get('templateList').split(",")
     templateListResp = []
@@ -75,7 +75,7 @@ def sample():
 
     return {"status" : 200,"code" : "OK" , "result" : {"templateLinks" : templateListResp}}
 
-@app.route("/api/v1/upload", methods = ['POST'])
+@app.route("/template/api/v1/upload", methods = ['POST'])
 def upload():
     
     ALLOWED_EXTENSIONS = set(['xlsx'])
@@ -112,7 +112,7 @@ def upload():
         
         return {"status" : 404,"code" : "File Error." , "result" : {"templateLinks" : ""}}
         
-@app.route("/api/v1/validate", methods = ['POST'])
+@app.route("/template/api/v1/validate", methods = ['POST'])
 def validate():
     req_body = request.get_json()
     templateFolderPath = req_body['templatePath']
