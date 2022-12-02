@@ -76,13 +76,14 @@ class xlsxObject:
     collection = self.validationDB[conditionCollection]
     for data in self.metadata["validations"]:
       sheetName = data["name"]
-      for columnData in data["columns"]:
-        columnName = columnData["name"]
-        for conditionName in columnData["conditions"]:
-          query = {"name": conditionName}
-          result = collection.find(query)
-          for conditionData in result:
-            if sheetName in self.xlsxData.keys():
+      if sheetName in self.xlsxData.keys() and data["required"]:
+        for columnData in data["columns"]:
+          columnName = columnData["name"]
+          for conditionName in columnData["conditions"]:
+            query = {"name": conditionName}
+            result = collection.find(query)
+            for conditionData in result:
+            
               if conditionData["name"] == "requiredTrue":
                 if conditionData["required"]["isRequired"]:
                   if columnName not in self.xlsxData[sheetName].columns:
@@ -190,10 +191,7 @@ class xlsxObject:
                 
                 if columnName in self.xlsxData[sheetName].columns:  
                   conditionData["userCheck"]["headers"]["X-authenticated-user-token"] = newToken.json()["access_token"]
-                  # print(hostUrl+conditionData["userCheck"]["api"])
-                  # print(conditionData["userCheck"]["headers"])
-                  # print(conditionData["userCheck"]["body"])
-                  # print(newToken.json()["access_token"])
+                  
                   for index, row in self.xlsxData[sheetName].iterrows():
                     conditionData["userCheck"]["body"]["request"]["filters"]["email"] = row[columnName]
 
@@ -252,7 +250,8 @@ class xlsxObject:
                           responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":index,"errMessage":conditionData["pmRoleCheck"]["errMessage"].format(row[columnName]), "suggestion":conditionData["pmRoleCheck"]["suggestion"]})
                     else:
                       responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":index,"errMessage":conditionData["pmRoleCheck"]["errMessage"].format(row[columnName]), "suggestion":conditionData["pmRoleCheck"]["suggestion"]})
-
+      else:
+        responseData["data"].append({"errCode":errBasic, "sheetName":sheetName,"errMessage":data["errMessage"].format(sheetName),"suggestion":data["suggestion"].format(sheetName)})
     return responseData
 
   def customCondition(self):
@@ -260,14 +259,14 @@ class xlsxObject:
     
     for data in self.metadata["validations"]:
       sheetName = data["name"]
-      for columnData in data["columns"]:
-        columnName = columnData["name"]
-        
-        if "customConditions" in columnData.keys():
-          for customKey in columnData["customConditions"].keys():
-            if customKey == "requiredValue":
-              df = self.xlsxData[sheetName][columnName].apply(lambda x: set([y.strip() for y in x.split(', ')]).issubset(columnData["customConditions"]["requiredValue"]["values"]))
-              if False in df.values:
-                responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[~df].values).tolist(),"errMessage":columnData["customConditions"]["requiredValue"]["errMessage"], "suggestion":(columnData["customConditions"]["requiredValue"]["suggestion"]).format(columnData["customConditions"]["requiredValue"]["values"])})
-    print(responseData)         
+      if sheetName in self.xlsxData.keys():
+        for columnData in data["columns"]:
+          columnName = columnData["name"]
+          
+          if "customConditions" in columnData.keys():
+            for customKey in columnData["customConditions"].keys():
+              if customKey == "requiredValue":
+                df = self.xlsxData[sheetName][columnName].apply(lambda x: set([y.strip() for y in x.split(', ')]).issubset(columnData["customConditions"]["requiredValue"]["values"]))
+                if False in df.values:
+                  responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[~df].values).tolist(),"errMessage":columnData["customConditions"]["requiredValue"]["errMessage"], "suggestion":(columnData["customConditions"]["requiredValue"]["suggestion"]).format(columnData["customConditions"]["requiredValue"]["values"])})
     return responseData
