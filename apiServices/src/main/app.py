@@ -8,6 +8,7 @@ import jwt
 from flask_cors import CORS
 import numpy as np
 import datetime
+import pymongo
 
 sys.path.append('../../..')
 sys.path.append('../../../backend/src/main/modules/')
@@ -43,25 +44,68 @@ def login():
     req_body = request.get_json()
     savedUSERNAME = os.environ.get('email')
     savedPASSWORD = os.environ.get('password')
-    userName = req_body['email']
-    password = hashlib.md5(req_body['password'].encode('utf-8'))
+    try:
+        userName = req_body['request']['email']
+        password = hashlib.md5(req_body['request']['password'].encode('utf-8'))
 
-    if(userName==savedUSERNAME and password.hexdigest()==savedPASSWORD):
-        # Exipry and other details can be added here
-        message = {
-            'iss': '',
-            'email': savedUSERNAME
-            }
-        signing_key = os.environ.get("SECRET_KEY")
-        encoded_jwt = jwt.encode({'message': message}, signing_key, algorithm='HS256')
+        client = pymongo.MongoClient(os.environ.get('mongoURL'))
+
+        db = client[os.environ.get('db')]
+        
+        usersCollection = db[os.environ.get('userCollection')]
+        
+        users = usersCollection.count_documents({'userName' : userName , "password" : str(password.hexdigest())})
+        
+        if(users):
+            # Exipry and other details can be added here
+            message = {
+                'iss': '',
+                'email': userName
+                }
+            signing_key = os.environ.get("SECRET_KEY")
+            encoded_jwt = jwt.encode({'message': message}, signing_key, algorithm='HS256')
 
 
-        return {"status" : 200,"code" : "Authenticated","errorFlag" : False,"error" : [],"response" : {
-            "accessToken" : encoded_jwt
-        }}
+            return {"status" : 200,"code" : "Authenticated","errorFlag" : False,"error" : [],"response" : {
+                "accessToken" : encoded_jwt
+            }}
+        else:
+            return {"status" : 404,"code" : "Error","errorFlag" : True,"error" : ["Username / Password Doesn't Match"],"response" : {
+                "accessToken" : "" }}
+    except Exception as e:
+        return {"status" : 500,"code" : str(e) ,"errorFlag" : True,"error" : ["Error in reaching server"],"response" : {
+                "accessToken" : "" }}
+
+@app.route("/template/api/v1/signup", methods = ['POST'])
+def signup():
+    req_body = request.get_json()
+    auth = request.headers.get('admin-token')
+    if(not auth):
+        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
     else:
-        return {"status" : 404,"code" : "Error","errorFlag" : True,"error" : ["Username / Password Doesn't Match"],"response" : {
-            "accessToken" : "" }}
+        if not auth == os.environ.get('admin-token'):
+            return {"status" : 500,"code" : "Not Authorized" , "result" : {"templateLinks" : ""}}
+
+
+    try:
+        userName = req_body['request']['email']
+        password = hashlib.md5(req_body['request']['password'].encode('utf-8'))
+
+        client = pymongo.MongoClient(os.environ.get('mongoURL'))
+
+        db = client[os.environ.get('db')]
+        
+        usersCollection = db[os.environ.get('userCollection')]
+        now = datetime.datetime.now()
+        users = usersCollection.count_documents({'userName' : userName})
+        
+        if(users <= 0):
+            users = usersCollection.insert_one({'userName' : userName , "password" : str(password.hexdigest()),"status" : "active","role" : "admin","createdAt" : str(now),"updatedAt" : str(now),"createdBy" : "admin"})
+            return {"status" : 200,"code" : "Authenticated","errorFlag" : False,"error" : [],"response" : "User created Successfully."}
+        else:
+            return {"status" : 404,"code" : "Error","errorFlag" : True,"error" : ["UserName already exisiting."],"response" : {"accessToken" : "" }}
+    except Exception as e:
+        return {"status" : 500,"code" : str(e) ,"errorFlag" : True,"error" : ["Error in reaching server"],"response" : {"accessToken" : "" }}
 
 @app.route("/template/api/v1/download/sampleTemplate", methods = ['GET'])
 def sample():
@@ -77,6 +121,21 @@ def sample():
 
 @app.route("/template/api/v1/upload", methods = ['POST'])
 def upload():
+
+    # Token validation
+    auth = request.headers.get('Authorization')
+    signing_key = os.environ.get("SECRET_KEY")
+    payload = False
+    if(not auth):
+        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
+    else:
+        try:
+            payload = jwt.decode(auth, signing_key, algorithms=['HS256'])
+        except Exception as e:
+            print(e)
+
+    if(not payload):
+        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : "True"}}
     
     ALLOWED_EXTENSIONS = set(['xlsx'])
 
@@ -117,6 +176,22 @@ def validate():
     req_body = request.get_json()
     templateFolderPath = req_body['templatePath']
     templateCode = req_body['templateCode']
+
+    # Token validation
+    auth = request.headers.get('Authorization')
+    signing_key = os.environ.get("SECRET_KEY")
+    payload = False
+    if(not auth):
+        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
+    else:
+        try:
+            payload = jwt.decode(auth, signing_key, algorithms=['HS256'])
+        except Exception as e:
+            print(e)
+
+    if(not payload):
+        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : "True"}}
+    
 
     basicErrors = basicValidation(templateFolderPath,templateCode)
     # advancedErrors = advancedValidation(templateFolderPath,templateCode)
