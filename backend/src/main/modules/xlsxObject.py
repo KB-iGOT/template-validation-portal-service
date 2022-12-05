@@ -262,11 +262,15 @@ class xlsxObject:
       if sheetName in self.xlsxData.keys():
         for columnData in data["columns"]:
           columnName = columnData["name"]
-          
-          if "customConditions" in columnData.keys():
-            for customKey in columnData["customConditions"].keys():
-              if customKey == "requiredValue":
-                df = self.xlsxData[sheetName][columnName].apply(lambda x: set([y.strip() for y in x.split(', ')]).issubset(columnData["customConditions"]["requiredValue"]["values"]))
-                if False in df.values:
-                  responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[~df].values).tolist(),"errMessage":columnData["customConditions"]["requiredValue"]["errMessage"], "suggestion":(columnData["customConditions"]["requiredValue"]["suggestion"]).format(columnData["customConditions"]["requiredValue"]["values"])})
+          try:
+            if "customConditions" in columnData.keys():
+              for customKey in columnData["customConditions"].keys():
+                if customKey == "requiredValue":
+                  df = self.xlsxData[sheetName][columnName].apply(lambda x: set([y.strip() for y in x.split(', ')]).issubset(columnData["customConditions"]["requiredValue"]["values"]))
+                  if False in df.values:
+                    responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[~df].values).tolist(),"errMessage":columnData["customConditions"]["requiredValue"]["errMessage"], "suggestion":(columnData["customConditions"]["requiredValue"]["suggestion"]).format(columnData["customConditions"]["requiredValue"]["values"])})
+          except Exception as e:
+            print(e, columnName)
+
+
     return responseData
