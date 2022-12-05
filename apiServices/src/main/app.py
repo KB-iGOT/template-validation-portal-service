@@ -107,6 +107,7 @@ def signup():
     except Exception as e:
         return {"status" : 500,"code" : str(e) ,"errorFlag" : True,"error" : ["Error in reaching server"],"response" : {"accessToken" : "" }}
 
+
 @app.route("/template/api/v1/download/sampleTemplate", methods = ['GET'])
 def sample():
     templateList = os.environ.get('templateList').split(",")
