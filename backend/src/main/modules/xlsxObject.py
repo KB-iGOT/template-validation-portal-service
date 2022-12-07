@@ -224,9 +224,13 @@ class xlsxObject:
 
                     df = requests.post(url=hostUrl+conditionData["pdRoleCheck"]["api"],headers=conditionData["pdRoleCheck"]["headers"],json=conditionData["pdRoleCheck"]["body"])
                     if df.json()["result"]["response"]["count"] > 0:
+                      checkFlag = False
                       for orgData in df.json()["result"]["response"]["content"][0]["organisations"]:
-                        if conditionData["pdRoleCheck"]["role"] not in orgData["roles"]:
-                          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":index,"errMessage":conditionData["pdRoleCheck"]["errMessage"].format(row[columnName]), "suggestion":conditionData["pdRoleCheck"]["suggestion"]})
+                        if conditionData["pdRoleCheck"]["role"] in orgData["roles"]:
+                          checkFlag = True
+                          break
+                      if not checkFlag:    
+                        responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":index,"errMessage":conditionData["pdRoleCheck"]["errMessage"].format(row[columnName]), "suggestion":conditionData["pdRoleCheck"]["suggestion"]})
                     else:
                       responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":index,"errMessage":conditionData["pdRoleCheck"]["errMessage"].format(row[columnName]), "suggestion":conditionData["pdRoleCheck"]["suggestion"]})
               
@@ -244,10 +248,13 @@ class xlsxObject:
 
                     df = requests.post(url=hostUrl+conditionData["pmRoleCheck"]["api"],headers=conditionData["pmRoleCheck"]["headers"],json=conditionData["pmRoleCheck"]["body"])
                     if df.json()["result"]["response"]["count"] > 0:
-                    
+                      checkFlag = False
                       for orgData in df.json()["result"]["response"]["content"][0]["organisations"]:
-                        if conditionData["pmRoleCheck"]["role"] not in orgData["roles"]:
-                          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":index,"errMessage":conditionData["pmRoleCheck"]["errMessage"].format(row[columnName]), "suggestion":conditionData["pmRoleCheck"]["suggestion"]})
+                        if conditionData["pmRoleCheck"]["role"] in orgData["roles"]:
+                          checkFlag = True
+                          break
+                      if not checkFlag:
+                        responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":index,"errMessage":conditionData["pmRoleCheck"]["errMessage"].format(row[columnName]), "suggestion":conditionData["pmRoleCheck"]["suggestion"]})
                     else:
                       responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":index,"errMessage":conditionData["pmRoleCheck"]["errMessage"].format(row[columnName]), "suggestion":conditionData["pmRoleCheck"]["suggestion"]})
       else:
