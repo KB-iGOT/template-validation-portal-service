@@ -97,7 +97,7 @@ class xlsxObject:
                     if columnName in self.xlsxData[sheetName].columns:
                       if not self.xlsxData[sheetName][columnName].is_unique:
                         df = self.xlsxData[sheetName][columnName].duplicated(keep=False)
-                        responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":list(df.index[df == True].values),"errMessage":conditionData["unique"]["errMessage"].format(columnName),"suggestion":conditionData["unique"]["suggestion"].format(columnName, sheetName)})
+                        responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[df == True].values).tolist(),"errMessage":conditionData["unique"]["errMessage"].format(columnName),"suggestion":conditionData["unique"]["suggestion"].format(columnName, sheetName)})
                 except Exception as e:
                   continue  
               
@@ -107,7 +107,7 @@ class xlsxObject:
                   try:
                     df = self.xlsxData[sheetName][columnName].apply(lambda x: regexCompile.search(x))
                     if not df.isnull().values.all():
-                      responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":list(df.index[df.notnull()].values),"errMessage":conditionData["specialCharacters"]["errMessage"].format(sheetName, columnName),"suggestion":conditionData["specialCharacters"]["suggestion"]})
+                      responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[df.notnull()].values).tolist(),"errMessage":conditionData["specialCharacters"]["errMessage"].format(sheetName, columnName),"suggestion":conditionData["specialCharacters"]["suggestion"]})
                   except Exception as e:
                     print(e, columnName)
               elif conditionData["name"] == "specialCharacterName":
@@ -116,7 +116,7 @@ class xlsxObject:
                   try:
                     df = self.xlsxData[sheetName][columnName].apply(lambda x: regexCompile.search(x))
                     if not df.isnull().values.all():
-                      responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":list(df.index[df.notnull()].values),"errMessage":conditionData["specialCharacterName"]["errMessage"].format(sheetName, columnName), "suggestion":conditionData["specialCharacterName"]["suggestion"]})
+                      responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[df.notnull()].values).tolist(),"errMessage":conditionData["specialCharacterName"]["errMessage"].format(sheetName, columnName), "suggestion":conditionData["specialCharacterName"]["suggestion"]})
                       
                   except Exception as e:
                     print(e, columnName)
