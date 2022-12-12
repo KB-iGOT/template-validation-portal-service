@@ -42,8 +42,8 @@ else:
 @app.route("/template/api/v1/authenticate", methods = ['POST'])
 def login():
     req_body = request.get_json()
-    savedUSERNAME = os.environ.get('email')
-    savedPASSWORD = os.environ.get('password')
+    # savedUSERNAME = os.environ.get('email')
+    # savedPASSWORD = os.environ.get('password')
     try:
         userName = req_body['request']['email']
         password = hashlib.md5(req_body['request']['password'].encode('utf-8'))
@@ -175,8 +175,8 @@ def upload():
 @app.route("/template/api/v1/validate", methods = ['POST'])
 def validate():
     req_body = request.get_json()
-    templateFolderPath = req_body['templatePath']
-    templateCode = req_body['templateCode']
+    templateFolderPath = req_body['request']['templatePath']
+    templateCode = req_body['request']['templateCode']
 
     # Token validation
     auth = request.headers.get('Authorization')
