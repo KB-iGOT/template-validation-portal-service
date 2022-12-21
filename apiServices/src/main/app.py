@@ -9,6 +9,11 @@ from flask_cors import CORS
 import numpy as np
 import datetime
 import pymongo
+import pandas as pd
+import shutil
+import openpyxl
+from openpyxl import load_workbook
+from openpyxl.comments import Comment
 
 sys.path.append('../../..')
 sys.path.append('../../../backend/src/main/modules/')
@@ -39,11 +44,66 @@ else:
     print('".env" is missing.')
     sys.exit(1)
 
+def addComments(templatePath, errResponse):
+    xlsxData = pd.read_excel(templatePath, sheet_name=None)
+    errPath = templatePath.split(".")[0]+"_errFile"+".xlsx"
+    shutil.copyfile(templatePath, errPath)
+
+    workBook = load_workbook(errPath, data_only = True)
+    
+    for key in xlsxData.keys():
+        newHeader = xlsxData[key].iloc[0]
+        xlsxData[key] = xlsxData[key][1:]
+        xlsxData[key].columns = newHeader
+    for result in errResponse["result"]:
+        for errData in errResponse["result"][result]["data"]:
+            if errData["columnName"] != "":
+                spreadSheet = workBook[errData["sheetName"]]
+                try:
+                    columnNumer = xlsxData[errData["sheetName"]].columns.get_loc(errData["columnName"])
+                except Exception as e:
+                    if spreadSheet.cell(2,1).comment is None:
+                        spreadSheet.cell(2,1).comment=Comment("Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
+                    else:
+                        spreadSheet.cell(2,1).comment=Comment(spreadSheet.cell(row=1, column=1).comment.text+"Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
+                    continue
+                if type(errData["rowNumber"]) is list:
+                    for rowIndex in errData["rowNumber"]:
+                        if spreadSheet.cell(row=rowIndex+2, column=columnNumer+1).comment is None:
+                            spreadSheet.cell(row=rowIndex+2, column=columnNumer+1).comment=Comment("Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n","admin")
+                        else:
+                            spreadSheet.cell(row=rowIndex+2, column=columnNumer+1).comment=Comment(spreadSheet.cell(row=rowIndex+2, column=columnNumer+1).comment.text+"Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n","admin")
+
+                elif type(errData["rowNumber"]) is int:
+                    if spreadSheet.cell(row=errData["rowNumber"]+2, column=columnNumer+1).comment is None:
+                        spreadSheet.cell(row=errData["rowNumber"]+2, column=columnNumer+1).comment=Comment("Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n","admin")
+                    else:
+                        spreadSheet.cell(row=errData["rowNumber"]+2, column=columnNumer+1).comment=Comment(spreadSheet.cell(row=errData["rowNumber"]+2, column=columnNumer+1).comment.text+"Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n","admin")
+            else:
+                if errData["errCode"] == 300:
+                    workBook.create_sheet(errData["sheetName"])
+                    spreadSheet = workBook[errData["sheetName"]]
+                    spreadSheet.cell(2,1).comment=Comment("Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
+                    continue
+                else:
+                    spreadSheet = workBook[errData["sheetName"]]
+                    for rowIndex in errData["rowNumber"]:
+                        if spreadSheet.cell(rowIndex+2,1).comment is None: 
+                            spreadSheet.cell(rowIndex+2,1).comment=Comment("Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
+                        else:
+                            spreadSheet.cell(rowIndex+2,1).comment=Comment(spreadSheet.cell(rowIndex+2,1).comment.text+"Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
+                    continue
+
+                    
+    workBook.save(errPath)
+    errResponse["result"]["errFileLink"] = "http://34.143.225.1/template/api/v1/errDownload?templatePath="+errPath
+    return errResponse
+
 @app.route("/template/api/v1/authenticate", methods = ['POST'])
 def login():
     req_body = request.get_json()
-    # savedUSERNAME = os.environ.get('email')
-    # savedPASSWORD = os.environ.get('password')
+    savedUSERNAME = os.environ.get('email')
+    savedPASSWORD = os.environ.get('password')
     try:
         userName = req_body['request']['email']
         password = hashlib.md5(req_body['request']['password'].encode('utf-8'))
@@ -55,7 +115,7 @@ def login():
         usersCollection = db[os.environ.get('userCollection')]
         
         users = usersCollection.count_documents({'userName' : userName , "password" : str(password.hexdigest())})
-        
+
         if(users):
             # Exipry and other details can be added here
             message = {
@@ -85,7 +145,6 @@ def signup():
     else:
         if not auth == os.environ.get('admin-token'):
             return {"status" : 500,"code" : "Not Authorized" , "result" : {"templateLinks" : ""}}
-
 
     try:
         userName = req_body['request']['email']
@@ -175,11 +234,11 @@ def upload():
 @app.route("/template/api/v1/validate", methods = ['POST'])
 def validate():
     req_body = request.get_json()
-    templateFolderPath = req_body['request']['templatePath']
-    templateCode = req_body['request']['templateCode']
+    templateFolderPath = req_body["request"]["templatePath"]
+    templateCode = req_body["request"]["templateCode"]
 
     # Token validation
-    auth = request.headers.get('Authorization')
+    auth = request.headers.get("Authorization")
     signing_key = os.environ.get("SECRET_KEY")
     payload = False
     if(not auth):
@@ -200,7 +259,7 @@ def validate():
     if basicErrors.success:
         valErr = basicErrors.basicCondition()
         advValErr = basicErrors.customCondition()
-        return {"status" : 200,"code" : "OK" , "result" : {"basicErrors" : valErr,"advancedErrors" : advValErr}}
+        return addComments(templateFolderPath,{"status" : 200,"code" : "OK" , "result" : {"basicErrors" : valErr,"advancedErrors" : advValErr}})
     else:
         return {"status" : 404,"code" : "ERROR" , "result" :{},"message":"Please check template id"}
 def basicValidation(templateFolderPath,templateCode):
@@ -211,6 +270,11 @@ def advancedValidation(templateFolderPath,templateCode):
     return {"errors" : ["a","b","c"]}
     
 
+
+@app.route("/template/api/v1/errDownload", methods = ['GET'])
+def errDownload():
+    templateFolderPath = request.args.get("templatePath")
+    return send_from_directory(os.path.dirname(templateFolderPath), os.path.basename(templateFolderPath), as_attachment=True)
+
 if (__name__ == '__main__'):
     app.run(debug=False)
-    
