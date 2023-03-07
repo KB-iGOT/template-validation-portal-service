@@ -14,6 +14,8 @@ import shutil
 import openpyxl
 from openpyxl import load_workbook
 from openpyxl.comments import Comment
+from openpyxl.styles import PatternFill
+
 
 sys.path.append('../../..')
 sys.path.append('../../../backend/src/main/modules/')
@@ -50,11 +52,15 @@ def addComments(templatePath, errResponse):
     shutil.copyfile(templatePath, errPath)
 
     workBook = load_workbook(errPath, data_only = True)
-    
-    for key in xlsxData.keys():
-        newHeader = xlsxData[key].iloc[0]
-        xlsxData[key] = xlsxData[key][1:]
-        xlsxData[key].columns = newHeader
+    try:
+        for key in xlsxData.keys():
+            newHeader = xlsxData[key].iloc[0]
+            xlsxData[key] = xlsxData[key][1:]
+            xlsxData[key].columns = newHeader
+    except Exception as e:
+        workBook.save(errPath)
+        errResponse["result"]["errFileLink"] = "http://34.143.225.1/template/api/v1/errDownload?templatePath="+errPath
+        return errResponse
     for result in errResponse["result"]:
         for errData in errResponse["result"][result]["data"]:
             if errData["columnName"] != "":
@@ -64,34 +70,42 @@ def addComments(templatePath, errResponse):
                 except Exception as e:
                     if spreadSheet.cell(2,1).comment is None:
                         spreadSheet.cell(2,1).comment=Comment("Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
+                        spreadSheet.cell(2,1).fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type = "solid")
                     else:
                         spreadSheet.cell(2,1).comment=Comment(spreadSheet.cell(row=1, column=1).comment.text+"Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
+                        spreadSheet.cell(2,1).fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type = "solid")
                     continue
                 if type(errData["rowNumber"]) is list:
                     for rowIndex in errData["rowNumber"]:
                         if spreadSheet.cell(row=rowIndex+2, column=columnNumer+1).comment is None:
                             spreadSheet.cell(row=rowIndex+2, column=columnNumer+1).comment=Comment("Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n","admin")
+                            spreadSheet.cell(row=rowIndex+2, column=columnNumer+1).fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type = "solid")
                         else:
                             spreadSheet.cell(row=rowIndex+2, column=columnNumer+1).comment=Comment(spreadSheet.cell(row=rowIndex+2, column=columnNumer+1).comment.text+"Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n","admin")
-
+                            spreadSheet.cell(row=rowIndex+2, column=columnNumer+1).fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type = "solid")
                 elif type(errData["rowNumber"]) is int:
                     if spreadSheet.cell(row=errData["rowNumber"]+2, column=columnNumer+1).comment is None:
                         spreadSheet.cell(row=errData["rowNumber"]+2, column=columnNumer+1).comment=Comment("Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n","admin")
+                        spreadSheet.cell(row=errData["rowNumber"]+2, column=columnNumer+1).fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type = "solid")
                     else:
                         spreadSheet.cell(row=errData["rowNumber"]+2, column=columnNumer+1).comment=Comment(spreadSheet.cell(row=errData["rowNumber"]+2, column=columnNumer+1).comment.text+"Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n","admin")
+                        spreadSheet.cell(row=errData["rowNumber"]+2, column=columnNumer+1).fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type = "solid") 
             else:
                 if errData["errCode"] == 300:
                     workBook.create_sheet(errData["sheetName"])
                     spreadSheet = workBook[errData["sheetName"]]
                     spreadSheet.cell(2,1).comment=Comment("Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
+                    spreadSheet.cell(2,1).fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type = "solid")
                     continue
                 else:
                     spreadSheet = workBook[errData["sheetName"]]
                     for rowIndex in errData["rowNumber"]:
                         if spreadSheet.cell(rowIndex+2,1).comment is None: 
                             spreadSheet.cell(rowIndex+2,1).comment=Comment("Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
+                            spreadSheet.cell(rowIndex+2,1).fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type = "solid")
                         else:
                             spreadSheet.cell(rowIndex+2,1).comment=Comment(spreadSheet.cell(rowIndex+2,1).comment.text+"Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
+                            spreadSheet.cell(rowIndex+2,1).fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type = "solid")
                     continue
 
                     

@@ -41,6 +41,7 @@ class xlsxObject:
       self.pmInfo = {}          #Program manager belong to this orgIds
       self.stateId = {}         #State ids of given states
       self.stateOrgNames = {}
+      self.stateCodeList = []
     
     else:
       print("Multiple/No id found for requested id::", id)
@@ -69,6 +70,8 @@ class xlsxObject:
       if columnName in self.xlsxData[sheetName].columns:
         if not self.xlsxData[sheetName][columnName].is_unique:
           df = self.xlsxData[sheetName][columnName].duplicated(keep=False)
+          if len(set((df.index[df == True].values).tolist()) - set(self.xlsxData[sheetName][columnName].loc[pd.isna(self.xlsxData[sheetName][columnName])].index.values.tolist())) == 0:
+            return responseData
           responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[df == True].values).tolist(),"errMessage":conditionData["unique"]["errMessage"].format(columnName),"suggestion":conditionData["unique"]["suggestion"].format(columnName, sheetName)})
     return responseData
 
@@ -115,6 +118,7 @@ class xlsxObject:
 
   def pdRoleCheck(self, conditionData, sheetName, columnName, newToken, multipleRow,responseData):
     self.xlsxData[sheetName] = self.xlsxData[sheetName].drop(columns="isEmail", errors="ignore")
+    self.xlsxData[sheetName][columnName] = self.xlsxData[sheetName][columnName].fillna("None")
     self.xlsxData[sheetName]["isEmail"] = self.xlsxData[sheetName][columnName].apply(lambda x: re.fullmatch(self.emailRegex, x))
     if columnName in self.xlsxData[sheetName].columns:  
       conditionData["pdRoleCheck"]["headers"]["X-authenticated-user-token"] = newToken.json()["access_token"]
@@ -123,19 +127,28 @@ class xlsxObject:
         if index > 1 and not multipleRow:
           break
 
+        if row[columnName] == "None":
+          continue
+        
         conditionData["pdRoleCheck"]["body"]["request"]["filters"]["email"] = row[columnName]
 
         if row["isEmail"] == None:
           conditionData["pdRoleCheck"]["body"]["request"]["filters"]["userName"] = conditionData["pdRoleCheck"]["body"]["request"]["filters"].pop("email")
 
         df = requests.post(url=hostUrl+conditionData["pdRoleCheck"]["api"],headers=conditionData["pdRoleCheck"]["headers"],json=conditionData["pdRoleCheck"]["body"])
+        # print(df.json())
+
         if df.json()["result"]["response"]["count"] == 0:
           responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":index,"errMessage":conditionData["pdRoleCheck"]["errMessage"].format(row[columnName]), "suggestion":conditionData["pdRoleCheck"]["suggestion"]})
         else:
-          self.pdInfo[row[columnName]] = {}
+          self.pdInfo[row[columnName]] = False
           for orgData in df.json()["result"]["response"]["content"][0]["organisations"]:
             if conditionData["pdRoleCheck"]["role"] in orgData["roles"]:
-              self.pdInfo[row[columnName]].update({orgData["orgName"]: orgData["organisationId"], "userName":df.json()["result"]["response"]["content"][0]["userName"]})
+              self.pdInfo[row[columnName]] = True
+              break
+              # self.pdInfo[row[columnName]].update({orgData["orgName"]: orgData["organisationId"], "userName":df.json()["result"]["response"]["content"][0]["userName"]})
+          if not self.pdInfo[row[columnName]]:
+            responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":index,"errMessage":conditionData["pdRoleCheck"]["errMessage"].format(row[columnName]), "suggestion":conditionData["pdRoleCheck"]["suggestion"]})
 
     return responseData
 
@@ -152,23 +165,24 @@ class xlsxObject:
         if df.json()["result"]["count"] == 0:
           responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":1,"errMessage":conditionData["stateCheck"]["errMessage"].format(stateName), "suggestion":conditionData["stateCheck"]["suggestion"]})
         else:
+          self.stateCodeList.append(df.json()["result"]["response"][0]["code"])
           self.stateId[df.json()["result"]["response"][0]["id"]] = df.json()["result"]["response"][0]["name"]
 
     return responseData
 
 
-  def orgCheck(self, conditionData, sheetName, columnName, responseData):
-    # if columnName in self.xlsxData[sheetName].columns:
-    for orgId in self.stateId.keys():
-      conditionData["orgCheck"]["body"]["request"]["filters"]["locationIds"] = orgId
+  # def orgCheck(self, conditionData, sheetName, columnName, responseData):
+  #   # if columnName in self.xlsxData[sheetName].columns:
+  #   for orgId in self.stateId.keys():
+  #     conditionData["orgCheck"]["body"]["request"]["filters"]["locationIds"] = orgId
     
-      df = requests.post(url=preprodHostUrl+conditionData["orgCheck"]["api"],headers=conditionData["orgCheck"]["headers"],json=conditionData["orgCheck"]["body"])
-      if df.json()["result"]["response"]["count"] == 0:
-        responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":1,"errMessage":conditionData["orgCheck"]["errMessage"].format(self.stateId[orgId]), "suggestion":conditionData["orgCheck"]["suggestion"]})
-      else:
-        self.stateOrgNames[df.json()["result"]["response"]["content"][0]["orgName"]] = df.json()["result"]["response"]["content"][0]["id"]
+  #     df = requests.post(url=preprodHostUrl+conditionData["orgCheck"]["api"],headers=conditionData["orgCheck"]["headers"],json=conditionData["orgCheck"]["body"])
+  #     if df.json()["result"]["response"]["count"] == 0:
+  #       responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":1,"errMessage":conditionData["orgCheck"]["errMessage"].format(self.stateId[orgId]), "suggestion":conditionData["orgCheck"]["suggestion"]})
+  #     else:
+  #       self.stateOrgNames[df.json()["result"]["response"]["content"][0]["orgName"]] = df.json()["result"]["response"]["content"][0]["id"]
 
-    return responseData
+  #   return responseData
 
   def districtCheck(self, conditionData, sheetName, columnName,responseData):
 
@@ -192,6 +206,7 @@ class xlsxObject:
 
   def pmRoleCheck(self, conditionData, sheetName, columnName, newToken, multipleRow,responseData):
     self.xlsxData[sheetName] = self.xlsxData[sheetName].drop(columns="isEmail", errors="ignore")
+    self.xlsxData[sheetName][columnName] = self.xlsxData[sheetName][columnName].fillna("None")
     self.xlsxData[sheetName]["isEmail"] = self.xlsxData[sheetName][columnName].apply(lambda x: re.fullmatch(self.emailRegex, x))
     if columnName in self.xlsxData[sheetName].columns:  
       conditionData["pmRoleCheck"]["headers"]["X-authenticated-user-token"] = newToken.json()["access_token"]
@@ -199,7 +214,9 @@ class xlsxObject:
       for index, row in self.xlsxData[sheetName].iterrows():
         if index > 1 and not multipleRow:
           break
-
+        if row[columnName] == "None":
+          continue
+                                  
         conditionData["pmRoleCheck"]["body"]["request"]["filters"]["email"] = row[columnName]
 
         if row["isEmail"] == None:
@@ -210,10 +227,15 @@ class xlsxObject:
         if df.json()["result"]["response"]["count"] == 0:
           responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":index,"errMessage":conditionData["pmRoleCheck"]["errMessage"].format(row[columnName]), "suggestion":conditionData["pmRoleCheck"]["suggestion"]})
         else:
-          self.pmInfo[row[columnName]] = {}
+          self.pmInfo[row[columnName]] = False
           for orgData in df.json()["result"]["response"]["content"][0]["organisations"]:
             if conditionData["pmRoleCheck"]["role"] in orgData["roles"]:
-              self.pmInfo[row[columnName]].update({orgData["orgName"]: orgData["organisationId"],"userName":df.json()["result"]["response"]["content"][0]["userName"]})
+              self.pmInfo[row[columnName]] = True
+              break
+              # self.pmInfo[row[columnName]].update({orgData["orgName"]: orgData["organisationId"],"userName":df.json()["result"]["response"]["content"][0]["userName"]})
+          if not self.pmInfo[row[columnName]]:
+            responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":index,"errMessage":conditionData["pmRoleCheck"]["errMessage"].format(row[columnName]), "suggestion":conditionData["pmRoleCheck"]["suggestion"]})
+
 
     return responseData
 
@@ -290,12 +312,12 @@ class xlsxObject:
                   print(e, sheetName, columnName,"stateCheck")
                   continue
               
-              elif conditionData["name"] == "orgCheck":
-                try:   
-                  responseData = self.orgCheck(conditionData, sheetName, columnName,responseData)             
-                except Exception as e:
-                  print(e, sheetName, columnName,"orgCheck")
-                  continue
+              # elif conditionData["name"] == "orgCheck":
+              #   try:   
+              #     responseData = self.orgCheck(conditionData, sheetName, columnName,responseData)             
+              #   except Exception as e:
+              #     print(e, sheetName, columnName,"orgCheck")
+              #     continue
 
               elif conditionData["name"] == "districtCheck":
                 try:   
@@ -383,9 +405,10 @@ class xlsxObject:
                     elif dependData["type"] == "attribute":
                       df = self.xlsxData[sheetName][columnName].str.split(",").apply(lambda x : [y.strip() for y in x])
                       attributeData = getattr(self,dependData["attributeName"])
-                      count = 1
+                      count = 0
                         
                       for testList in df:
+                        count += 1
                         if count > 1 and not multipleRow:
                           break
                   
@@ -411,20 +434,34 @@ class xlsxObject:
                     
                     
                     elif dependData["type"] == "condition":
-                      if dependData["conditionName"] == "stateOrgCheck":
-                        try:
-                          if self.xlsxData[sheetName][columnName].iloc[0] == self.xlsxData[sheetName][columnName].iloc[0]:
-                            stateList = [item.strip() for item in self.xlsxData[sheetName][columnName].iloc[0].split(",")]
-                            for stateName in stateList:
-
-                              if self.pdInfo[self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]].iloc[0]][stateName] != self.stateOrgNames[stateName]:
-                                responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":1,"errMessage":dependData["errMessage"].format(self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]].iloc[0], stateName), "suggestion":dependData["suggestion"]})
-
-                        except Exception as e:
-                          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":1,"errMessage":dependData["errMessage"].format(self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]].iloc[0], stateName), "suggestion":dependData["suggestion"]})
-                          print(e, sheetName, columnName, "stateOrgCheck")
-
+                      if dependData["conditionName"] == "subRoleCheck":
+                        allowedSubRole = []
+                        collection = self.validationDB[conditionCollection]
+                        query = {"name": "subRoleCheck"}
+                        result = collection.find(query)
+                        for subRoleConfig in result:
+                          for stateCode in self.stateCodeList:
+                            subRoleConfig["subRoleCheck"]["body"]["request"]["subType"] = stateCode
+                            subRoleData = requests.post(url=hostUrl+subRoleConfig["subRoleCheck"]["api"], headers=subRoleConfig["subRoleCheck"]["headers"], json=subRoleConfig["subRoleCheck"]["body"])
+                            for z in subRoleData.json()["result"]["form"]["data"]["fields"][1]["children"]["administrator"][2]["templateOptions"]["options"]:
+                              allowedSubRole.append(z["label"])
+                              allowedSubRole.append(z["value"])
+                              
                         
+                        for idx, row in self.xlsxData[sheetName].iterrows():
+                          if idx > 1 and not multipleRow:
+                            break
+                              
+                          df = [y.strip() for y in row[dependData["dependsOn"]["dependentColumnName"]].split(",")]
+                          if any(item in df for item in dependData["dependsOn"]["dependentColumnValue"]):
+                            if row[columnName] != row[columnName]:
+                              responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"].format(row[columnName]), "suggestion":dependData["suggestion"]})
+                            else:
+                              dfTest = [y.strip() for y in row[columnName].split(",")]
+                              if not all(x in allowedSubRole for x in dfTest):
+                                responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"].format(dfTest), "suggestion":dependData["suggestion"]})
+
+
                     
                     elif dependData["type"] == "subset":
                       df = (self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]].str.split(",")).apply(pd.Series).stack().unique().tolist()
@@ -446,14 +483,15 @@ class xlsxObject:
                         if any(item in df for item in dependData["dependsOn"]["dependentColumnValue"]):
                           if row[columnName] != row[columnName]:
                             responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
-                        else:
-                          if row[columnName] == row[columnName]:
-                            responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
+                        # else:
+                        #   if row[columnName] == row[columnName]:
+                        #     responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
 
 
                 elif customKey == "linkCheck":
-                  count = 1
+                  count = 0
                   for x in self.xlsxData[sheetName][columnName]:
+                    count += 1
                     if count > 1 and not multipleRow:
                       break
                     resourcePath = self.metadata["xlsxPath"].split(".")[0]+"_"+sheetName+"_"+str(count)+".xlsx"
@@ -469,7 +507,17 @@ class xlsxObject:
                       except Exception as e:
                         responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":str(count),"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
                         print(e, sheetName, columnName,"linkCheck")
-                    count += 1 
+                        continue
+                    else:
+                      x = requests.get("https://diksha.gov.in/api/content/v1/read/"+x.split("/")[-1])
+                      try:
+                        if x.json()["result"]["content"]["status"] != "Live" or x.json()["result"]["content"]["contentType"] != "Course":
+                          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":str(count),"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
+                      except Exception as e:
+                        responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":str(count),"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
+                        print(e, sheetName, columnName,"linkCheck")
+                        continue
+
 
                 
           except Exception as e:
