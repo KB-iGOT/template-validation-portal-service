@@ -72,7 +72,7 @@ def addComments(templatePath, errResponse):
                         spreadSheet.cell(2,1).comment=Comment("Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
                         spreadSheet.cell(2,1).fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type = "solid")
                     else:
-                        spreadSheet.cell(2,1).comment=Comment(spreadSheet.cell(row=1, column=1).comment.text+"Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
+                        spreadSheet.cell(2,1).comment=Comment(spreadSheet.cell(row=2, column=1).comment.text+"Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
                         spreadSheet.cell(2,1).fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type = "solid")
                     continue
                 if type(errData["rowNumber"]) is list:
