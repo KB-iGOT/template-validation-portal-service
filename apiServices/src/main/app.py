@@ -15,6 +15,7 @@ import openpyxl
 from openpyxl import load_workbook
 from openpyxl.comments import Comment
 from openpyxl.styles import PatternFill
+from pymongo.errors import DuplicateKeyError
 
 
 sys.path.append('../../..')
@@ -46,6 +47,13 @@ else:
     print('".env" is missing.')
     sys.exit(1)
 
+def connectDb(url,db,collection):
+    client = pymongo.MongoClient(url)
+    db = client[db]
+    collectionData = db[collection]
+    # print("Connection Status : ",client.server_info())
+    return collectionData
+
 def addComments(templatePath, errResponse):
     xlsxData = pd.read_excel(templatePath, sheet_name=None)
     errPath = templatePath.split(".")[0]+"_errFile"+".xlsx"
@@ -72,7 +80,7 @@ def addComments(templatePath, errResponse):
                         spreadSheet.cell(2,1).comment=Comment("Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
                         spreadSheet.cell(2,1).fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type = "solid")
                     else:
-                        spreadSheet.cell(2,1).comment=Comment(spreadSheet.cell(row=1, column=1).comment.text+"Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
+                        spreadSheet.cell(2,1).comment=Comment(spreadSheet.cell(row=2, column=1).comment.text+"Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
                         spreadSheet.cell(2,1).fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type = "solid")
                     continue
                 if type(errData["rowNumber"]) is list:
@@ -290,5 +298,128 @@ def errDownload():
     templateFolderPath = request.args.get("templatePath")
     return send_from_directory(os.path.dirname(templateFolderPath), os.path.basename(templateFolderPath), as_attachment=True)
 
+@app.route("/support/api/v1/userRoles/list", methods = ['GET'])
+def userRoles():
+    returnResponse = {}
+    subRoles = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),os.environ.get('subRoleCollection'))
+    returnResponseTmp = subRoles.find({})
+    if returnResponseTmp:
+        returnResponse["status"] = 200
+        returnResponse["code"] = "OK"
+        returnResponse["result"] = []
+        for ech in returnResponseTmp:
+            returnResponse["result"].append({"_id" : str(ech["_id"]),"code" : ech["code"],"title" : ech["title"]})
+    return returnResponse
+
+
+@app.route("/support/api/v1/userRoles/singleUpload", methods = ['POST'])
+def singleUpload():
+
+    error = ""
+    result = {}
+
+    req_body = request.get_json()
+
+    auth = request.headers.get('admin-token')
+    if(not auth):
+        return {"status" : 500,"code" : "Authorization Failed" , "result" : []}
+    else:
+        if not auth == os.environ.get('admin-token'):
+            return {"status" : 500,"code" : "Not Authorized" , "result" : []}
+    try:
+        mydict = {}
+
+        if req_body['code'] == None or req_body['title'] == None or req_body['code'] == "" or req_body['title'] == "":
+            error = "Required value missing"
+        else:
+            subRoles = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),os.environ.get('subRoleCollection'))
+            mydict = {"code" : req_body['code'] , "title" : req_body['title']}
+            chechSubRole = subRoles.count_documents({"code" : req_body['code']})
+
+            if chechSubRole > 0:
+                error = "Duplicate Key error"
+            else:
+
+                x = subRoles.insert_one(mydict)
+                result = {
+                    "message" : "subRoles added successfully.",
+                    "_id" : str(x.inserted_id)
+                }
+    except Exception as e:
+        
+        error = "Key missing."
+
+    
+    return {"status" : 200,"code" : "OK", "result" : result,"error" : error}
+
+
+@app.route("/support/api/v1/userRoles/bulkUpload", methods = ['POST'])
+def bulkUpload():
+
+    error = ""
+
+    req_body = request.get_json()
+
+    req_body = req_body['content']
+
+    result = {
+        "data"  : []
+    }
+                
+
+    auth = request.headers.get('admin-token')
+
+    if(not auth):
+        return {"status" : 500,"code" : "Authorization Failed" , "result" : []}
+    else:
+        if not auth == os.environ.get('admin-token'):
+            return {"status" : 500,"code" : "Not Authorized" , "result" : []}
+    try:
+        mydict = []
+
+        subRoles = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),os.environ.get('subRoleCollection'))
+        
+        for index in req_body:
+            chechSubRole = subRoles.count_documents({"code" : index['code']})
+            if chechSubRole > 0:
+                error = "Duplicate Key error"
+            else:
+                error = None
+                if index['code'] == None or index['title'] == None or index['code'] == "" or index['title'] == "":
+                    error = "Required value missing"
+                else:
+                    error = None
+            if not error:
+                mydict.append({"code" : index['code'] , "title" : index['title'],"error": None})
+            else:
+                mydict.append({"code" : index['code'] , "title" : index['title'],"error" : error})
+
+        for index in mydict:
+
+            if index["error"]:
+                result['data'].append({
+                                    "code" : index['code'],
+                                    "title" : index['title'],
+                                    "_id" : "",
+                                    "error" : index['error']
+                                })
+            else:
+                x = subRoles.insert_one({"code" : index['code'] , "title" : index['title']})
+                result['data'].append({
+                                        "code" : index['code'],
+                                        "title" : index['title'],
+                                        "_id" : str(x.inserted_id),
+                                        "error" : ""
+                                    })
+
+    except Exception as e:
+
+        print(e)
+        
+        error = "Key missing."
+
+    
+    return {"status" : 200,"code" : "OK", "result" : result,"error" : error}
+
 if (__name__ == '__main__'):
-    app.run(debug=False)
+    app.run(port=8000,debug=False)
