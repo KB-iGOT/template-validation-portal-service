@@ -40,7 +40,7 @@ class xlsxObject:
       self.pdInfo = {}           #Program designer belong to this orgIds
       self.pmInfo = {}          #Program manager belong to this orgIds
       self.stateId = {}         #State ids of given states
-      self.stateOrgNames = {}
+      self.ccInfo = {}
       self.stateCodeList = []
     
     else:
@@ -72,7 +72,7 @@ class xlsxObject:
           df = self.xlsxData[sheetName][columnName].duplicated(keep=False)
           if len(set((df.index[df == True].values).tolist()) - set(self.xlsxData[sheetName][columnName].loc[pd.isna(self.xlsxData[sheetName][columnName])].index.values.tolist())) == 0:
             return responseData
-          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[df == True].values).tolist(),"errMessage":conditionData["unique"]["errMessage"].format(columnName),"suggestion":conditionData["unique"]["suggestion"].format(columnName, sheetName)})
+          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":list(set((df.index[df == True].values).tolist()) - set(self.xlsxData[sheetName][columnName].loc[pd.isna(self.xlsxData[sheetName][columnName])].index.values.tolist())),"errMessage":conditionData["unique"]["errMessage"].format(columnName),"suggestion":conditionData["unique"]["suggestion"].format(columnName, sheetName)})
     return responseData
 
 
@@ -97,8 +97,26 @@ class xlsxObject:
         responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[df.notnull()].values).tolist(),"errMessage":conditionData["specialCharacterName"]["errMessage"].format(sheetName, columnName), "suggestion":conditionData["specialCharacterName"]["suggestion"]})
     return responseData
 
+  def projectsSpecialCharacter(self, conditionData, sheetName, columnName, responseData):
+    if columnName in self.xlsxData[sheetName].columns:
+      regexCompile = re.compile(str(conditionData["projectsSpecialCharacter"]["notAllowedSpecialCharacters"]))
 
+      df = self.xlsxData[sheetName][columnName].apply(lambda x: regexCompile.search(x))
+      if not df.isnull().values.all():
+        responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[df.notnull()].values).tolist(),"errMessage":conditionData["projectsSpecialCharacter"]["errMessage"].format(sheetName, columnName), "suggestion":conditionData["projectsSpecialCharacter"]["suggestion"]})
+    return responseData
 
+  def recommendedForCheck(self, conditionData, sheetName, columnName, multipleRow,responseData):
+    for idx, row in self.xlsxData[sheetName].iterrows():
+      if idx > 1 and not multipleRow:
+        break
+      df = [y.strip() for y in row[columnName].split(",")]
+      if not all(item in conditionData["recommendedForCheck"]["roles"] for item in df):
+        responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":conditionData["recommendedForCheck"]["errMessage"], "suggestion":conditionData["recommendedForCheck"]["suggestion"]})
+                
+
+    return responseData
+  
   def dateFormatFun(self, conditionData, sheetName, columnName,responseData):
     if columnName in self.xlsxData[sheetName].columns:
       if conditionData["dateFormat"]["format"] == "DD-MM-YYYY":
@@ -239,6 +257,41 @@ class xlsxObject:
 
     return responseData
 
+  def ccRoleCheck(self, conditionData, sheetName, columnName, newToken, multipleRow,responseData):
+    self.xlsxData[sheetName] = self.xlsxData[sheetName].drop(columns="isEmail", errors="ignore")
+    self.xlsxData[sheetName][columnName] = self.xlsxData[sheetName][columnName].fillna("None")
+    self.xlsxData[sheetName]["isEmail"] = self.xlsxData[sheetName][columnName].apply(lambda x: re.fullmatch(self.emailRegex, x))
+    if columnName in self.xlsxData[sheetName].columns:  
+      conditionData["ccRoleCheck"]["headers"]["X-authenticated-user-token"] = newToken.json()["access_token"]
+      
+      for index, row in self.xlsxData[sheetName].iterrows():
+        if index > 1 and not multipleRow:
+          break
+        if row[columnName] == "None":
+          continue
+                                  
+        conditionData["ccRoleCheck"]["body"]["request"]["filters"]["email"] = row[columnName]
+
+        if row["isEmail"] == None:
+          conditionData["ccRoleCheck"]["body"]["request"]["filters"]["userName"] = conditionData["ccRoleCheck"]["body"]["request"]["filters"].pop("email")
+
+        df = requests.post(url=hostUrl+conditionData["ccRoleCheck"]["api"],headers=conditionData["ccRoleCheck"]["headers"],json=conditionData["ccRoleCheck"]["body"])
+        
+        if df.json()["result"]["response"]["count"] == 0:
+          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":index,"errMessage":conditionData["ccRoleCheck"]["errMessage"].format(row[columnName]), "suggestion":conditionData["ccRoleCheck"]["suggestion"]})
+        else:
+          self.ccInfo[row[columnName]] = False
+          for orgData in df.json()["result"]["response"]["content"][0]["organisations"]:
+            if conditionData["ccRoleCheck"]["role"] in orgData["roles"]:
+              self.ccInfo[row[columnName]] = True
+              break
+              # self.ccInfo[row[columnName]].update({orgData["orgName"]: orgData["organisationId"],"userName":df.json()["result"]["response"]["content"][0]["userName"]})
+          if not self.ccInfo[row[columnName]]:
+            responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":index,"errMessage":conditionData["ccRoleCheck"]["errMessage"].format(row[columnName]), "suggestion":conditionData["ccRoleCheck"]["suggestion"]})
+
+
+    return responseData
+
 
   def checkSheetExists(self):
     for data in self.metadata["validations"]:
@@ -297,6 +350,13 @@ class xlsxObject:
                 except Exception as e:
                   print(e, sheetName, columnName,"specialCharacterName")
                   continue
+              
+              elif conditionData["name"] == "projectsSpecialCharacter":
+                try:
+                  responseData = self.projectsSpecialCharacter(conditionData, sheetName, columnName,responseData)
+                except Exception as e:
+                  print(e, sheetName, columnName,"projectsSpecialCharacter")
+                  continue
             
               elif conditionData["name"] == "dateFormat":
                 try:
@@ -339,6 +399,23 @@ class xlsxObject:
                 except Exception as e:
                   print(e, sheetName, columnName,"pmRoleCheck")
                   continue
+              
+              elif conditionData["name"] == "ccRoleCheck":
+                try:
+                  responseData = self.ccRoleCheck(conditionData, sheetName, columnName, newToken, multipleRow,responseData)
+                except Exception as e:
+                  print(e, sheetName, columnName,"ccRoleCheck")
+                  continue
+              
+              
+              elif conditionData["name"] == "recommendedForCheck":
+                try:
+                  responseData = self.recommendedForCheck(conditionData, sheetName, columnName,multipleRow,responseData)
+                except Exception as e:
+                  print(e, sheetName, columnName,"recommendedForCheck")
+                  continue
+            
+
       else:
         if data["required"]:
           responseData["data"].append({"errCode":errBasic, "sheetName":sheetName, "columnName":"","errMessage":data["errMessage"].format(sheetName),"suggestion":data["suggestion"].format(sheetName)})
@@ -387,7 +464,8 @@ class xlsxObject:
                         if False in df.values:
                           responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[~df].values).tolist(),"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"]})
                       except Exception as e:
-                        print(e)
+                        print(e, sheetName, "operator")
+                        continue
                       # self.xlsxData[sheetName][columnName] = pd.to_datetime(self.xlsxData[sheetName][columnName], format='%d-%m-%Y')
                       # self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]] = pd.to_datetime(self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]], format='%d-%m-%Y')
                       
@@ -478,14 +556,53 @@ class xlsxObject:
                       for idx, row in self.xlsxData[sheetName].iterrows():
                         if idx > 1 and not multipleRow:
                           break
-                            
-                        df = [y.strip() for y in row[dependData["dependsOn"]["dependentColumnName"]].split(",")]
-                        if any(item in df for item in dependData["dependsOn"]["dependentColumnValue"]):
-                          if row[columnName] != row[columnName]:
-                            responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
+                        
+                        if len(dependData["dependsOn"]["dependentColumnValue"]) == 0:
+                          if row[columnName] == row[columnName]:
+                            if row[dependData["dependsOn"]["dependentColumnName"]] == row[dependData["dependsOn"]["dependentColumnName"]]: 
+                              responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
+
+                        elif dependData["dependsOn"]["dependentColumnValue"][0] == "*":
+                          if row[columnName] == row[columnName]:
+                            if row[dependData["dependsOn"]["dependentColumnName"]] != row[dependData["dependsOn"]["dependentColumnName"]]:
+                              responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})  
+                        else:
+                          df = [y.strip() for y in row[dependData["dependsOn"]["dependentColumnName"]].split(",")]
+                          if any(item in df for item in dependData["dependsOn"]["dependentColumnValue"]):
+                            if row[columnName] != row[columnName]:
+                              responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
+                        
+
                         # else:
                         #   if row[columnName] == row[columnName]:
                         #     responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
+                    elif dependData["type"] == "isInteger":
+                      for idx, row in self.xlsxData[sheetName].iterrows():
+                        if type(row[columnName]) == str:
+                          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":(dependData["suggestion"]).format(dependData["range"])})
+                        elif type(row[columnName]) == int:
+                          if row[columnName] <= dependData["range"][0] or row[columnName] >= dependData["range"][1]:
+                            responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":(dependData["suggestion"]).format(dependData["range"])})
+                    
+                    elif dependData["type"] == "isParent":
+                      parentTask = []
+                      subTask = []
+                      for idx, row in self.xlsxData[sheetName].iterrows():
+                        if row[columnName] == row[columnName]:
+                          if row[columnName] not in parentTask:
+                            responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"]})
+                          else:
+                            if subTask[parentTask.index(row[columnName])] == subTask[parentTask.index(row[columnName])]:
+                              responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"]})
+
+                        parentTask.append(row[dependData["dependsOn"]["dependentColumnName"]])
+                        subTask.append(row[columnName])
+                    elif dependData["type"] == "checkTask":
+                      for idx, row in self.xlsxData[sheetName].iterrows():
+                        if row[columnName] == row[columnName]:
+                          if row["TaskId"] in self.xlsxData[sheetName][dependData["dependsOn"]["dependentColumnName"]].values.tolist():
+                            responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"]})
+
 
 
                 elif customKey == "linkCheck":
@@ -495,13 +612,17 @@ class xlsxObject:
                     if count > 1 and not multipleRow:
                       break
                     resourcePath = self.metadata["xlsxPath"].split(".")[0]+"_"+sheetName+"_"+str(count)+".xlsx"
+                    if type(x) != str and x==x:
+                      responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":count,"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
+                      continue
+
                     if x[:39] == "https://docs.google.com/spreadsheets/d/":
                       x = x.split("/")[5]
                       x = "https://docs.google.com/spreadsheets/export?id={}&exportFormat=xlsx".format(x)
                       try:
                         wget.download(x, resourcePath)
                         if not os.path.exists(resourcePath):
-                          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":str(count),"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
+                          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":count,"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
                         else:
                           os.remove(resourcePath)
                       except Exception as e:
@@ -509,12 +630,16 @@ class xlsxObject:
                         print(e, sheetName, columnName,"linkCheck")
                         continue
                     else:
-                      x = requests.get("https://diksha.gov.in/api/content/v1/read/"+x.split("/")[-1])
                       try:
-                        if x.json()["result"]["content"]["status"] != "Live" or x.json()["result"]["content"]["contentType"] != "Course":
-                          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":str(count),"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
+                        x = requests.get("https://diksha.gov.in/api/content/v1/read/"+x.split("/")[-1].split("?")[0])
+                        if x.json()["result"]["content"]["status"] != "Live":
+                          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":count,"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
+
+                        if len(columnData["customConditions"][customKey]["allowedType"]) != 0:
+                          if x.json()["result"]["content"]["contentType"] not in columnData["customConditions"][customKey]["allowedType"]:
+                            responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":count,"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
                       except Exception as e:
-                        responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":str(count),"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
+                        responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":count,"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
                         print(e, sheetName, columnName,"linkCheck")
                         continue
 
@@ -522,6 +647,7 @@ class xlsxObject:
                 
           except Exception as e:
             print(e, sheetName,columnName)
+            continue
 
 
     return responseData
