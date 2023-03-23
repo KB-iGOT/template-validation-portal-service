@@ -301,26 +301,27 @@ def errDownload():
 @app.route("/support/api/v1/userRoles/list", methods = ['GET'])
 def userRoles():
     returnResponse = {}
-    subRoles = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),os.environ.get('subRoleCollection'))
-    returnResponseTmp = subRoles.find({})
+    subRoles = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),os.environ.get('conditionsCollection'))
+    returnResponseTmp = subRoles.find({"name" : "recommendedForCheck"})
+    
     if returnResponseTmp:
         returnResponse["status"] = 200
         returnResponse["code"] = "OK"
-        returnResponse["result"] = []
-        for ech in returnResponseTmp:
-            returnResponse["result"].append({"_id" : str(ech["_id"]),"code" : ech["code"],"title" : ech["title"]})
+        returnResponse["result"] = returnResponseTmp[0]['recommendedForCheck']['roles']
     return returnResponse
 
+# Update and add new subroles using this API
+@app.route("/support/api/v1/userRoles/update", methods = ['POST'])
+def update():
 
-@app.route("/support/api/v1/userRoles/singleUpload", methods = ['POST'])
-def singleUpload():
-
-    error = ""
+    error = []
     result = {}
 
     req_body = request.get_json()
 
     auth = request.headers.get('admin-token')
+
+    # Auth code check
     if(not auth):
         return {"status" : 500,"code" : "Authorization Failed" , "result" : []}
     else:
@@ -329,97 +330,131 @@ def singleUpload():
     try:
         mydict = {}
 
-        if req_body['code'] == None or req_body['title'] == None or req_body['code'] == "" or req_body['title'] == "":
-            error = "Required value missing"
+        if req_body['code'] == None or req_body['title'] == None or req_body['code'] == "" or req_body['title'] == "" or req_body['_id'] == None or req_body['_id'] == "" :
+            error.append("Required value missing")
         else:
-            subRoles = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),os.environ.get('subRoleCollection'))
-            mydict = {"code" : req_body['code'] , "title" : req_body['title']}
-            chechSubRole = subRoles.count_documents({"code" : req_body['code']})
+            subRoles = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),os.environ.get('conditionsCollection'))
+            returnResponseTmp = subRoles.find({"name" : "recommendedForCheck"})
+    
+            mydict = {"code" : req_body['code'] , "title" : req_body['title'], "_id" : req_body['_id']}
+            chechSubRole = 0
+            codeFlag = False
+            idFlag = False
 
-            if chechSubRole > 0:
-                error = "Duplicate Key error"
-            else:
+            currentSubRoles = returnResponseTmp[0]['recommendedForCheck']['roles']
+            for index in currentSubRoles:
+                if index['code'] == req_body['code']:
+                    codeFlag = True
+                if index['_id'] == req_body['_id']:
+                    idFlag = True
 
-                x = subRoles.insert_one(mydict)
+            if codeFlag:
+                error.append("Duplicate Code error")
+
+            # update Subrole 
+            if idFlag :
+                indexCount = 0
+                for index in currentSubRoles:
+                    if index['_id'] == req_body['_id']:
+                        currentSubRoles[indexCount]['code'] = req_body['code']
+                        currentSubRoles[indexCount]['title'] = req_body['title']
+                    indexCount += 1
+                findQuery = { "name" : "recommendedForCheck" }
+                newvalues = { "$set": { "recommendedForCheck.roles": currentSubRoles } }
+
+                subRoles.update_one(findQuery, newvalues)
                 result = {
-                    "message" : "subRoles added successfully.",
-                    "_id" : str(x.inserted_id)
+                    "message" : "subRoles updated successfully.",
+                    "_id" : req_body['_id'],
+                    "title" : req_body['title'],
+                    "code" : req_body['code']
+                }
+                # Add new subroles   
+            elif len(error) <= 0:
+
+                currentSubRoles.append(mydict)
+                findQuery = { "name" : "recommendedForCheck" }
+                newvalues = { "$set": { "recommendedForCheck.roles": currentSubRoles } }
+
+                subRoles.update_one(findQuery, newvalues)
+                result = {
+                    "message" : "subRoles added successfully."
                 }
     except Exception as e:
-        
+        print(e)
         error = "Key missing."
 
     
     return {"status" : 200,"code" : "OK", "result" : result,"error" : error}
 
 
-@app.route("/support/api/v1/userRoles/bulkUpload", methods = ['POST'])
-def bulkUpload():
+# @app.route("/support/api/v1/userRoles/bulkUpload", methods = ['POST'])
+# def bulkUpload():
 
-    error = ""
+#     error = ""
 
-    req_body = request.get_json()
+#     req_body = request.get_json()
 
-    req_body = req_body['content']
+#     req_body = req_body['content']
 
-    result = {
-        "data"  : []
-    }
+#     result = {
+#         "data"  : []
+#     }
                 
 
-    auth = request.headers.get('admin-token')
+#     auth = request.headers.get('admin-token')
 
-    if(not auth):
-        return {"status" : 500,"code" : "Authorization Failed" , "result" : []}
-    else:
-        if not auth == os.environ.get('admin-token'):
-            return {"status" : 500,"code" : "Not Authorized" , "result" : []}
-    try:
-        mydict = []
+#     if(not auth):
+#         return {"status" : 500,"code" : "Authorization Failed" , "result" : []}
+#     else:
+#         if not auth == os.environ.get('admin-token'):
+#             return {"status" : 500,"code" : "Not Authorized" , "result" : []}
+#     try:
+#         mydict = []
 
-        subRoles = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),os.environ.get('subRoleCollection'))
+#         subRoles = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),os.environ.get('subRoleCollection'))
         
-        for index in req_body:
-            chechSubRole = subRoles.count_documents({"code" : index['code']})
-            if chechSubRole > 0:
-                error = "Duplicate Key error"
-            else:
-                error = None
-                if index['code'] == None or index['title'] == None or index['code'] == "" or index['title'] == "":
-                    error = "Required value missing"
-                else:
-                    error = None
-            if not error:
-                mydict.append({"code" : index['code'] , "title" : index['title'],"error": None})
-            else:
-                mydict.append({"code" : index['code'] , "title" : index['title'],"error" : error})
+#         for index in req_body:
+#             chechSubRole = subRoles.count_documents({"code" : index['code']})
+#             if chechSubRole > 0:
+#                 error = "Duplicate Key error"
+#             else:
+#                 error = None
+#                 if index['code'] == None or index['title'] == None or index['code'] == "" or index['title'] == "":
+#                     error = "Required value missing"
+#                 else:
+#                     error = None
+#             if not error:
+#                 mydict.append({"code" : index['code'] , "title" : index['title'],"error": None})
+#             else:
+#                 mydict.append({"code" : index['code'] , "title" : index['title'],"error" : error})
 
-        for index in mydict:
+#         for index in mydict:
 
-            if index["error"]:
-                result['data'].append({
-                                    "code" : index['code'],
-                                    "title" : index['title'],
-                                    "_id" : "",
-                                    "error" : index['error']
-                                })
-            else:
-                x = subRoles.insert_one({"code" : index['code'] , "title" : index['title']})
-                result['data'].append({
-                                        "code" : index['code'],
-                                        "title" : index['title'],
-                                        "_id" : str(x.inserted_id),
-                                        "error" : ""
-                                    })
+#             if index["error"]:
+#                 result['data'].append({
+#                                     "code" : index['code'],
+#                                     "title" : index['title'],
+#                                     "_id" : "",
+#                                     "error" : index['error']
+#                                 })
+#             else:
+#                 x = subRoles.insert_one({"code" : index['code'] , "title" : index['title']})
+#                 result['data'].append({
+#                                         "code" : index['code'],
+#                                         "title" : index['title'],
+#                                         "_id" : str(x.inserted_id),
+#                                         "error" : ""
+#                                     })
 
-    except Exception as e:
+#     except Exception as e:
 
-        print(e)
+#         print(e)
         
-        error = "Key missing."
+#         error = "Key missing."
 
     
-    return {"status" : 200,"code" : "OK", "result" : result,"error" : error}
+#     return {"status" : 200,"code" : "OK", "result" : result,"error" : error}
 
 if (__name__ == '__main__'):
     app.run(port=8000,debug=False)
