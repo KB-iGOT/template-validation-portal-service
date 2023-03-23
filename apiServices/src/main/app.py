@@ -325,27 +325,27 @@ def update():
     if(not auth):
         return {"status" : 500,"code" : "Authorization Failed" , "result" : []}
     else:
-        if not auth == os.environ.get('admin-token'):
+        if not auth == os.environ.get("admin-token"):
             return {"status" : 500,"code" : "Not Authorized" , "result" : []}
     try:
         mydict = {}
 
-        if req_body['code'] == None or req_body['title'] == None or req_body['code'] == "" or req_body['title'] == "" or req_body['_id'] == None or req_body['_id'] == "" :
+        if req_body["request"]["code"] == None or req_body["request"]["title"] == None or req_body["request"]["code"] == "" or req_body["request"]["title"] == "" or req_body["request"]["_id"] == None or req_body["request"]["_id"] == "" :
             error.append("Required value missing")
         else:
-            subRoles = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),os.environ.get('conditionsCollection'))
+            subRoles = connectDb(os.environ.get("mongoURL"),os.environ.get("db"),os.environ.get("conditionsCollection"))
             returnResponseTmp = subRoles.find({"name" : "recommendedForCheck"})
     
-            mydict = {"code" : req_body['code'] , "title" : req_body['title'], "_id" : req_body['_id']}
+            mydict = {"code" : req_body["request"]["code"] , "title" : req_body["request"]["title"], "_id" : req_body["request"]["_id"]}
             chechSubRole = 0
             codeFlag = False
             idFlag = False
 
-            currentSubRoles = returnResponseTmp[0]['recommendedForCheck']['roles']
+            currentSubRoles = returnResponseTmp[0]["recommendedForCheck"]["roles"]
             for index in currentSubRoles:
-                if index['code'] == req_body['code']:
+                if index["code"] == req_body["request"]["code"]:
                     codeFlag = True
-                if index['_id'] == req_body['_id']:
+                if index["_id"] == req_body["request"]["_id"]:
                     idFlag = True
 
             if codeFlag:
@@ -355,9 +355,9 @@ def update():
             if idFlag :
                 indexCount = 0
                 for index in currentSubRoles:
-                    if index['_id'] == req_body['_id']:
-                        currentSubRoles[indexCount]['code'] = req_body['code']
-                        currentSubRoles[indexCount]['title'] = req_body['title']
+                    if index["_id"] == req_body["request"]["_id"]:
+                        currentSubRoles[indexCount]["code"] = req_body["request"]["code"]
+                        currentSubRoles[indexCount]["title"] = req_body["request"]["title"]
                     indexCount += 1
                 findQuery = { "name" : "recommendedForCheck" }
                 newvalues = { "$set": { "recommendedForCheck.roles": currentSubRoles } }
@@ -365,9 +365,9 @@ def update():
                 subRoles.update_one(findQuery, newvalues)
                 result = {
                     "message" : "subRoles updated successfully.",
-                    "_id" : req_body['_id'],
-                    "title" : req_body['title'],
-                    "code" : req_body['code']
+                    "_id" : req_body["request"]["_id"],
+                    "title" : req_body["request"]["title"],
+                    "code" : req_body["request"]["code"]
                 }
                 # Add new subroles   
             elif len(error) <= 0:
@@ -457,4 +457,4 @@ def update():
 #     return {"status" : 200,"code" : "OK", "result" : result,"error" : error}
 
 if (__name__ == '__main__'):
-    app.run(port=8000,debug=False)
+    app.run(debug=False)

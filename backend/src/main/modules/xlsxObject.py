@@ -107,11 +107,17 @@ class xlsxObject:
     return responseData
 
   def recommendedForCheck(self, conditionData, sheetName, columnName, multipleRow,responseData):
+    rolesList = []
+    for roles in conditionData["recommendedForCheck"]["roles"]:
+      rolesList.append(roles["code"])
+    if len(rolesList) == 0:
+      responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":1,"errMessage":"recommendedFor role list is empty in the backend", "suggestion":"Please at least one role in the backend"})
+    
     for idx, row in self.xlsxData[sheetName].iterrows():
       if idx > 1 and not multipleRow:
         break
       df = [y.strip() for y in row[columnName].split(",")]
-      if not all(item in conditionData["recommendedForCheck"]["roles"] for item in df):
+      if not all(item in rolesList for item in df):
         responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":conditionData["recommendedForCheck"]["errMessage"], "suggestion":conditionData["recommendedForCheck"]["suggestion"]})
                 
 
