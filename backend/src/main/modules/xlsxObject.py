@@ -58,6 +58,8 @@ class xlsxObject:
         df = self.xlsxData[sheetName][columnName].isnull()
         if df.values.any():
           responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[df == True].values).tolist(),"errMessage":conditionData["required"]["errMessage"].format(columnName),"suggestion":conditionData["required"]["suggestion"].format(columnName, sheetName)})
+        elif len(self.xlsxData[sheetName]) == 0:
+          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":1,"errMessage":conditionData["required"]["errMessage"].format(columnName),"suggestion":conditionData["required"]["suggestion"].format(columnName, sheetName)})
     return responseData
 
 
@@ -299,6 +301,16 @@ class xlsxObject:
 
     return responseData
 
+  def storeResponse(self, conditionData, sheetName, columnName, multipleRow,responseData):
+    self.response = {}
+    for idx, row in self.xlsxData[sheetName].iterrows():
+      if idx > 1 and not multipleRow:
+        break
+      self.response[row[columnName]] = {}
+      for col in conditionData["storeResponse"]["columnNames"]:
+        self.response[row[columnName]][col] = row[col]
+    return responseData
+  
 
   def checkSheetExists(self):
     for data in self.metadata["validations"]:
@@ -421,7 +433,13 @@ class xlsxObject:
                 except Exception as e:
                   print(e, sheetName, columnName,"recommendedForCheck")
                   continue
-            
+              
+              elif conditionData["name"] == "storeResponse":
+                try:
+                  responseData = self.storeResponse(conditionData, sheetName, columnName,multipleRow,responseData)
+                except Exception as e:
+                  print(e, sheetName, columnName,"storeResponse")
+                  continue
 
       else:
         if data["required"]:
@@ -551,12 +569,19 @@ class xlsxObject:
                     elif dependData["type"] == "subset":
                       df = (self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]].str.split(",")).apply(pd.Series).stack().unique().tolist()
                       df = [item.strip() for item in df]
-                      
-                      dfTest = (self.xlsxData[sheetName][columnName].str.split(","))
-                      dfTest = dfTest.apply(lambda x: all(item in x for item in df))
-                      
-                      if False in dfTest.values:
-                        responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(dfTest.index[~dfTest].values).tolist(),"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(df)})
+
+                      for idx, row in self.xlsxData[sheetName].iterrows():
+                        if idx > 1 and not multipleRow:
+                          break
+                        dfTest = row[columnName].split(",")
+                        if not all(x in df for x in dfTest):
+                          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(df)})
+
+
+                      # dfTest = (self.xlsxData[sheetName][columnName].str.split(","))
+                      # dfTest = dfTest.apply(lambda x: all(item in x for item in df))
+                      # if False in dfTest.values:
+                      #   responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(dfTest.index[~dfTest].values).tolist(),"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(df)})
                     
                     
                     elif dependData["type"] == "value":
@@ -576,9 +601,12 @@ class xlsxObject:
                         else:
                           df = [y.strip() for y in row[dependData["dependsOn"]["dependentColumnName"]].split(",")]
                           if any(item in df for item in dependData["dependsOn"]["dependentColumnValue"]):
-                            if row[columnName] != row[columnName]:
+                            if row[columnName] != row[columnName] and dependData["isNeeded"]:
                               responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
-                        
+                          else:
+                            if row[columnName] == row[columnName]:
+                              responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
+
 
                         # else:
                         #   if row[columnName] == row[columnName]:
@@ -588,8 +616,9 @@ class xlsxObject:
                         if type(row[columnName]) == str:
                           responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":(dependData["suggestion"]).format(dependData["range"])})
                         elif type(row[columnName]) == int:
-                          if row[columnName] <= dependData["range"][0] or row[columnName] >= dependData["range"][1]:
-                            responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":(dependData["suggestion"]).format(dependData["range"])})
+                          if len(dependData["range"]) == 2:
+                            if row[columnName] < dependData["range"][0] or row[columnName] > dependData["range"][1]:
+                              responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":(dependData["suggestion"]).format(dependData["range"])})
                     
                     elif dependData["type"] == "isParent":
                       parentTask = []
@@ -604,13 +633,35 @@ class xlsxObject:
 
                         parentTask.append(row[dependData["dependsOn"]["dependentColumnName"]])
                         subTask.append(row[columnName])
+                    
                     elif dependData["type"] == "checkTask":
                       for idx, row in self.xlsxData[sheetName].iterrows():
                         if row[columnName] == row[columnName]:
                           if row["TaskId"] in self.xlsxData[sheetName][dependData["dependsOn"]["dependentColumnName"]].values.tolist():
                             responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"]})
 
+                    elif dependData["type"] == "checkResponse":
+                      for idx, row in self.xlsxData[sheetName].iterrows():
+                        if row[columnName] == row[columnName]:
+                          if len(dependData["dependsOn"]["dependentColumnValue"]) != 0 :
+                            # print(self.response[row[columnName]][dependData["dependsOn"]["dependentColumnName"]], dependData["dependsOn"]["dependentColumnValue"])
+                            if self.response[row[columnName]][dependData["dependsOn"]["dependentColumnName"]] not in dependData["dependsOn"]["dependentColumnValue"]:
+                              responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":(dependData["suggestion"]).format(dependData["dependsOn"]["dependentColumnValue"])})
+                          else:
+                            for res in row[columnName].split(","):
+                              try:
+                                if self.response[row["parent_question_id"]][(dependData["dependsOn"]["dependentColumnName"]).format(res)] != self.response[row["parent_question_id"]][(dependData["dependsOn"]["dependentColumnName"]).format(res)]:
+                                  responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":(dependData["errMessage"]).format(res), "suggestion":(dependData["suggestion"]).format(res)})
+                              except Exception as e:
+                                responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":(dependData["errMessage"]).format(res), "suggestion":(dependData["suggestion"]).format(res)})
 
+                    elif dependData["type"] == "integerOperator":
+                      for idx, row in self.xlsxData[sheetName].iterrows():
+                        if row[columnName] == row[columnName]:
+                          if dependData["dependsOn"]["dependentColumnValue"] == ["<"]:
+                            if row[columnName] > row[dependData["dependsOn"]["dependentColumnName"]]:
+                              responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"]})
+                          
 
                 elif customKey == "linkCheck":
                   count = 0

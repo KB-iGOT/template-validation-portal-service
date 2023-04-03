@@ -298,7 +298,7 @@ def errDownload():
     templateFolderPath = request.args.get("templatePath")
     return send_from_directory(os.path.dirname(templateFolderPath), os.path.basename(templateFolderPath), as_attachment=True)
 
-@app.route("/support/api/v1/userRoles/list", methods = ['GET'])
+@app.route("/template/api/v1/userRoles/list", methods = ['GET'])
 def userRoles():
     returnResponse = {}
     subRoles = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),os.environ.get('conditionsCollection'))
@@ -311,7 +311,7 @@ def userRoles():
     return returnResponse
 
 # Update and add new subroles using this API
-@app.route("/support/api/v1/userRoles/update", methods = ['POST'])
+@app.route("/template/api/v1/userRoles/update", methods = ['POST'])
 def update():
 
     error = []
