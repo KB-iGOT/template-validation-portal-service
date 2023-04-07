@@ -462,9 +462,20 @@ class xlsxObject:
               for customKey in columnData["customConditions"].keys():
                 
                 if customKey == "requiredValue":
-                  df = self.xlsxData[sheetName][columnName].apply(lambda x: set([y.strip() for y in x.split(',')]).issubset(columnData["customConditions"]["requiredValue"]["values"]))
-                  if False in df.values:
-                    responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[~df].values).tolist(),"errMessage":columnData["customConditions"]["requiredValue"]["errMessage"], "suggestion":(columnData["customConditions"]["requiredValue"]["suggestion"]).format(columnData["customConditions"]["requiredValue"]["values"])})
+                  for idx, row in self.xlsxData[sheetName].iterrows():
+                    if idx > 1 and not multipleRow:
+                      break
+                    try:
+                      dfTest = row[columnName].split(",")
+                      for x in dfTest:
+                        if x not in columnData["customConditions"]["requiredValue"]["values"]:
+                          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":columnData["customConditions"]["requiredValue"]["errMessage"], "suggestion":(columnData["customConditions"]["requiredValue"]["suggestion"]).format(columnData["customConditions"]["requiredValue"]["values"])})
+                    except Exception as e:
+                      print(e,type(row[columnName]), row[columnName], "requiredValue")
+                      continue
+                  # df = self.xlsxData[sheetName][columnName].apply(lambda x: set([y.strip() for y in x.split(',')]).issubset(columnData["customConditions"]["requiredValue"]["values"]))
+                  # if False in df.values:
+                  #   responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[~df].values).tolist(),"errMessage":columnData["customConditions"]["requiredValue"]["errMessage"], "suggestion":(columnData["customConditions"]["requiredValue"]["suggestion"]).format(columnData["customConditions"]["requiredValue"]["values"])})
                 
                 
                 elif customKey == "dependent":
