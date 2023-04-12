@@ -5,6 +5,8 @@ from datetime import datetime
 import numpy as np
 import wget
 import os
+import json
+from requests.models import Response
 
 from config import *
 
@@ -14,7 +16,8 @@ class xlsxObject:
     client = pymongo.MongoClient(connectionUrl)
     self.validationDB = client[databaseName]
     collection = self.validationDB[collectionName]
-    query = {"id":id}
+    self.templateId = id
+    query = {"id":self.templateId}
     
     result = collection.find(query)
     
@@ -298,7 +301,6 @@ class xlsxObject:
           if not self.ccInfo[row[columnName]]:
             responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":index,"errMessage":conditionData["ccRoleCheck"]["errMessage"].format(row[columnName]), "suggestion":conditionData["ccRoleCheck"]["suggestion"]})
 
-
     return responseData
 
   def storeResponse(self, conditionData, sheetName, columnName, multipleRow,responseData):
@@ -329,8 +331,20 @@ class xlsxObject:
     query = {"name": "tokenConfig"}
     result = collection.find(query)
     for tokenConfig in result:
-      newToken = requests.post(url=hostUrl+tokenConfig["tokenApi"], headers=tokenConfig["tokenHeader"], data=tokenConfig["tokenData"])
-
+      if "generatedOn" not in tokenConfig.keys():
+        newToken = requests.post(url=hostUrl+tokenConfig["tokenApi"], headers=tokenConfig["tokenHeader"], data=tokenConfig["tokenData"])
+        tokenConfig["generatedOn"] = datetime.now()
+        tokenConfig["result"] = newToken.json()
+        collection.save(tokenConfig)
+      else:
+        if (datetime.now() - tokenConfig["generatedOn"]).seconds > 86400:
+          newToken = requests.post(url=hostUrl+tokenConfig["tokenApi"], headers=tokenConfig["tokenHeader"], data=tokenConfig["tokenData"])
+          tokenConfig["generatedOn"] = datetime.now()
+          tokenConfig["result"] = newToken.json()
+          collection.save(tokenConfig)
+        else:
+          newToken = Response()
+          newToken._content = json.dumps(tokenConfig["result"]).encode('utf-8')
     collection = self.validationDB[conditionCollection]
     for data in self.metadata["validations"]:
       sheetName = data["name"]
@@ -342,7 +356,6 @@ class xlsxObject:
             query = {"name": conditionName}
             result = collection.find(query)
             for conditionData in result:
-            
               if conditionData["name"] == "requiredTrue":
                 try:
                   responseData = self.requiredTrue(conditionData, sheetName, columnName,responseData)
@@ -466,12 +479,17 @@ class xlsxObject:
                     if idx > 1 and not multipleRow:
                       break
                     try:
-                      dfTest = row[columnName].split(",")
-                      for x in dfTest:
-                        if x not in columnData["customConditions"]["requiredValue"]["values"]:
+                      if type(row[columnName]) == str:
+                        dfTest = row[columnName].split(",")
+                        for x in dfTest:
+                          if x not in columnData["customConditions"]["requiredValue"]["values"]:
+                            responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":columnData["customConditions"]["requiredValue"]["errMessage"], "suggestion":(columnData["customConditions"]["requiredValue"]["suggestion"]).format(columnData["customConditions"]["requiredValue"]["values"])})
+                      elif row[columnName] == row[columnName]:
+                        if row[columnName] not in columnData["customConditions"]["requiredValue"]["values"]:
                           responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":columnData["customConditions"]["requiredValue"]["errMessage"], "suggestion":(columnData["customConditions"]["requiredValue"]["suggestion"]).format(columnData["customConditions"]["requiredValue"]["values"])})
+                        
                     except Exception as e:
-                      print(e,type(row[columnName]), row[columnName], "requiredValue")
+                      print(e,type(row[columnName]), row[columnName], columnName, "requiredValue")
                       continue
                   # df = self.xlsxData[sheetName][columnName].apply(lambda x: set([y.strip() for y in x.split(',')]).issubset(columnData["customConditions"]["requiredValue"]["values"]))
                   # if False in df.values:
@@ -561,7 +579,6 @@ class xlsxObject:
                               allowedSubRole.append(z["label"])
                               allowedSubRole.append(z["value"])
                               
-                        
                         for idx, row in self.xlsxData[sheetName].iterrows():
                           if idx > 1 and not multipleRow:
                             break
@@ -612,11 +629,13 @@ class xlsxObject:
                         else:
                           df = [y.strip() for y in row[dependData["dependsOn"]["dependentColumnName"]].split(",")]
                           if any(item in df for item in dependData["dependsOn"]["dependentColumnValue"]):
-                            if row[columnName] != row[columnName] and dependData["isNeeded"]:
-                              responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
+                            if row[columnName] != row[columnName] or row[columnName] == "None":
+                              if dependData["isNeeded"]:
+                                responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
                           else:
-                            if row[columnName] == row[columnName]:
-                              responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
+                            if self.templateId == 3 or self.templateId == 4: 
+                              if row[columnName] == row[columnName] or row[columnName] != "None":
+                                responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
 
 
                         # else:
