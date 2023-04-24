@@ -7,7 +7,7 @@ import wget
 import os
 import json
 from requests.models import Response
-
+import time
 from config import *
 
 class xlsxObject:
@@ -45,6 +45,9 @@ class xlsxObject:
       self.stateId = {}         #State ids of given states
       self.ccInfo = {}
       self.stateCodeList = []
+      self.criteriaLevel = 0
+      self.domainLevel = 0
+      self.mapLevel = 0
     
     else:
       print("Multiple/No id found for requested id::", id)
@@ -293,7 +296,121 @@ class xlsxObject:
         self.response[row[columnName]][col] = row[col]
     return responseData
   
+  def storeScore(self, sheetName, columnName):
+    self.score = {}
+    for idx, row in self.xlsxData[sheetName].iterrows():
+      if row["criteria_id"] not in self.score.keys():
+        self.score[row["criteria_id"]] = {}
+      if row["question_response_type"] == "radio" or row["question_response_type"] == "multiselect":
+        self.score[row["criteria_id"]][row[columnName]] = [float("inf"), float("-inf"), row["question_weightage"]]
+    # print(self.score, "Initailize")
+  
+  def updateScore(self, sheetName, columnName):
+    for idx, row in self.xlsxData[sheetName].iterrows():
+      if row["question_response_type"] == "radio" or row["question_response_type"] == "multiselect":
+        if row[columnName] == row[columnName]:
+          if row[columnName] < self.score[row["criteria_id"]][row["question_id"]][0]:
+            self.score[row["criteria_id"]][row["question_id"]][0] = float(row[columnName])
+          if row[columnName] > self.score[row["criteria_id"]][row["question_id"]][1]:
+            self.score[row["criteria_id"]][row["question_id"]][1] = float(row[columnName])
+    # print(self.score, sheetName, columnName)  
+  
+  def calculateCriteriaRange(self, sheetName, columnName):
+    for idx, row in self.xlsxData[sheetName].iterrows():
+      criteria = row[columnName]
+      minSum = []
+      maxSum = []
+      for questions in self.score[criteria]:
+        minSum.append(self.score[criteria][questions][0]*self.score[criteria][questions][2])
+        maxSum.append(self.score[criteria][questions][1]*self.score[criteria][questions][2])
+      self.score[criteria]["range"] = [sum(minSum)/len(minSum), sum(maxSum)/len(maxSum), row["weightage"]]
+    print(self.score)
+  
+  def calculateDomainRange(self, sheetName, columnName):
+    self.domainScore = {}  
+    for idx, row in self.xlsxData[sheetName].iterrows():
+      df = self.xlsxData["framework"].loc[self.xlsxData["framework"]["Domain ID"] == row[columnName]]
+      criteriaList = df["Criteria ID"].values
+      domainName = row[columnName]
+      self.domainScore[domainName] = {}
+      for criteria in criteriaList:
+        self.domainScore[domainName][criteria] = self.score[criteria]["range"]
+      minSum = []
+      maxSum = []
+      for criteria in self.domainScore[domainName]:
+        minSum.append(self.domainScore[domainName][criteria][0]*self.domainScore[domainName][criteria][2])
+        maxSum.append(self.domainScore[domainName][criteria][1]*self.domainScore[domainName][criteria][2])
+      self.domainScore[domainName]["range"] = [sum(minSum)/len(minSum), sum(maxSum)/len(maxSum), row["weightage"]]
+    print(self.domainScore)
 
+  def stringToRange(self, scoreString):
+    if len(scoreString[1]) == 5 and scoreString[2][0] != "=":
+      testRange = np.arange(float(scoreString[0])+0.1,float(scoreString[2]),0.1)
+      testRange = [round(x,2) for x in testRange]
+    elif len(scoreString[1]) == 5 and scoreString[2][0] == "=":
+      testRange = np.arange(float(scoreString[0])+0.1,float(scoreString[2][1:])+0.1,0.1)
+      testRange = [round(x,2) for x in testRange]
+    elif len(scoreString[1]) == 6 and scoreString[2][0] != "=":
+      testRange = np.arange(float(scoreString[0]),float(scoreString[2]),0.1)
+      testRange = [round(x,2) for x in testRange]
+    elif len(scoreString[1]) == 6 and scoreString[2][0] == "=":
+      testRange = np.arange(float(scoreString[0]),float(scoreString[2][1:])+0.1,0.1)
+      testRange = [round(x,2) for x in testRange]
+    
+    return testRange
+          
+  
+  def checkCriteriaRange(self, sheetName, columnName, responseData):
+    for idx, row in self.xlsxData[sheetName].iterrows():
+      if columnName in self.xlsxData[sheetName].columns.values:
+        if row[columnName] == row[columnName]: 
+          scoreString = row[columnName].split("<")
+          testRange = self.stringToRange(scoreString)
+          
+          criteriaRange = np.arange(self.score[row["criteriaId"]]["range"][0],self.score[row["criteriaId"]]["range"][1]+0.1,0.1) 
+          criteriaRange = [round(x,2) for x in criteriaRange]
+
+          if not all((x in criteriaRange for x in testRange)):
+            responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":"Score range is not within criteria range [{},{}]".format(criteriaRange[0],criteriaRange[-1]), "suggestion":"Please give valid score range"})
+    return responseData
+            
+
+  def checkDomainRange(self, sheetName, columnName, responseData):
+    for idx, row in self.xlsxData[sheetName].iterrows():
+      if columnName in self.xlsxData[sheetName].columns.values:
+        if row[columnName] == row[columnName]: 
+          scoreString = row[columnName].split("<")
+          testRange = self.stringToRange(scoreString)
+
+          domainRange = np.arange(self.domainScore[row["domain_Id"]]["range"][0],self.domainScore[row["domain_Id"]]["range"][1]+0.1,0.1) 
+          domainRange = [round(x,2) for x in domainRange]
+          if not all((x in domainRange for x in testRange)):
+            responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":"Score range is not within domain range [{},{}]".format(domainRange[0],domainRange[-1]), "suggestion":"Please give valid range"})
+    return responseData
+  
+  def helperFunction(self, testRange, testRangeList, index, idx,sheetName, columnName,responseData):
+    for x, tempList in enumerate(testRangeList):
+      if any(x in testRange for x in tempList):
+        if sheetName == "Criteria_Rubric-Scoring":
+          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":self.xlsxData[sheetName].columns[index],"rowNumber":idx,"errMessage":"Score range is overlapping with other level's range", "suggestion":"Please give valid range in this level"})
+          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":self.xlsxData[sheetName].columns[x+2],"rowNumber":idx,"errMessage":"Score range is overlapping with other level's range", "suggestion":"Please give valid range in this level"})
+        else:
+          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":self.xlsxData[sheetName].columns[index],"rowNumber":idx,"errMessage":"Score range is overlapping with other level's range", "suggestion":"Please give valid range in this level"})
+          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":self.xlsxData[sheetName].columns[x+3],"rowNumber":idx,"errMessage":"Score range is overlapping with other level's range", "suggestion":"Please give valid range in this level"})
+
+    return responseData
+  def checkRangeIntersection(self, sheetName, columnName, responseData):
+    for idx, row in self.xlsxData[sheetName].iterrows():
+      testRangeList = []
+      if sheetName == "Criteria_Rubric-Scoring":
+        startIndex = 2
+      else:
+        startIndex = 3
+      for index in range(startIndex, len(self.xlsxData[sheetName].columns)-1):
+        testRange = self.stringToRange(row[self.xlsxData[sheetName].columns[index]].split("<"))
+        responseData = self.helperFunction(testRange, testRangeList, index, idx,sheetName,columnName,responseData)
+        testRangeList.append(testRange)
+    return responseData
   def checkSheetExists(self):
     for data in self.metadata["validations"]:
       sheetName = data["name"]
@@ -426,7 +543,72 @@ class xlsxObject:
                 except Exception as e:
                   print(e, sheetName, columnName,"storeResponse")
                   continue
+              
+              
+            if result.count() == 0:
+              if conditionName == "incrementLevel":
+                if columnName in self.xlsxData[sheetName].keys():
+                  self.criteriaLevel += 1
+                  self.domainLevel += 1
+                  self.mapLevel += 1
+              
+              elif conditionName == "decrementCriteriaLevel":
+                if columnName in self.xlsxData[sheetName].keys():
+                  self.criteriaLevel -= 1
 
+              elif conditionName == "decrementDomainLevel":
+                if columnName in self.xlsxData[sheetName].keys():
+                  self.domainLevel -= 1
+              elif conditionName == "decrementMapLevel":
+                if columnName in self.xlsxData[sheetName].keys():
+                  self.mapLevel -= 1
+
+              elif conditionName == "lastCriteriaLevel":
+                if self.criteriaLevel != 0:
+                  responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":self.xlsxData[sheetName].columns[-2],"rowNumber":0,"errMessage":"Criteria level is not same as in framework", "suggestion":"Please add or remove levels based on framework sheet"})
+
+              elif conditionName == "lastDomainLevel":
+                if self.domainLevel != 0:
+                  responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":self.xlsxData[sheetName].columns[-2],"rowNumber":0,"errMessage":"Domain level is not same as in framework", "suggestion":"Please add or remove levels based on framework sheet"})
+              
+              elif conditionName == "lastMapLevel":
+                if self.mapLevel != 0:
+                  responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":self.xlsxData[sheetName].columns[-2],"rowNumber":0,"errMessage":"Mapping level is not same as in framework", "suggestion":"Please add or remove levels based on framework sheet"})
+              
+              
+              elif conditionName == "storeScore":
+                try:
+                  self.storeScore(sheetName, columnName)
+                except Exception as e:
+                  print(e, sheetName, columnName,"storeScore")
+        
+              elif conditionName == "updateScore":
+                try:
+                  self.updateScore(sheetName, columnName)
+                except Exception as e:
+                  print(e, sheetName, columnName,"updateScore")
+              elif conditionName == "calculateCriteriaRange":
+                # try:
+                self.calculateCriteriaRange(sheetName, columnName)
+                # except Exception as e:
+                #   print(e, sheetName, columnName,"calculateCriteriaRange")
+
+              elif conditionName == "calculateDomainRange":
+                # try:
+                self.calculateDomainRange(sheetName, columnName)
+                # except Exception as e:
+                #   print(e, sheetName, columnName,"calculateDomainRange")
+              elif conditionName == "checkCriteriaRange":
+                # try:
+                responseData = self.checkCriteriaRange(sheetName, columnName, responseData)
+                # except Exception as e:
+                #   print(e, sheetName, columnName,"checkCriteriaRange")
+                
+              elif conditionName == "checkDomainRange":
+                responseData = self.checkDomainRange(sheetName, columnName, responseData)
+
+              elif conditionName == "checkRangeIntersection":
+                responseData = self.checkRangeIntersection(sheetName, columnName, responseData)
       else:
         if data["required"]:
           responseData["data"].append({"errCode":errBasic, "sheetName":sheetName, "columnName":"","errMessage":data["errMessage"].format(sheetName),"suggestion":data["suggestion"].format(sheetName)})
@@ -580,33 +762,49 @@ class xlsxObject:
                               if row[dependData["dependsOn"]["dependentColumnName"]] != row[dependData["dependsOn"]["dependentColumnName"]]:
                                 responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})  
                           else:
-                            if row[columnName] == None:
-                              print(row[columnName], type(row[columnName]),sheetName, columnName, idx)
+                            # print(row[columnName])
                             if dependData["dependsOn"]["dependentColumnName"] in row.keys():
+                              # print(self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]].iloc[idx-1])
                               df = [y.strip() for y in row[dependData["dependsOn"]["dependentColumnName"]].split(",")]
                             else:
-                              df = [y.strip() for y in self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]].iloc[idx-1].split(",")]
+                              dict1 = [dict1 for dict1 in self.metadata["validations"] if dict1["name"] == dependData["dependsOn"]["dependentTabName"]]
+                              if not dict1[0]["multipleRowsAllowed"]:
+                                # print(type(self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]].iloc[0]))
+                                df = [y.strip() for y in self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]].iloc[0].split(",")]
+                              else:
+                                # print(type(self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]].iloc[idx]))
+                                df = [y.strip() for y in self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]].iloc[idx-1].split(",")]
+
+
                             if any(item in df for item in dependData["dependsOn"]["dependentColumnValue"]):
                               if row[columnName] != row[columnName]: #or row[columnName] == "None":
                                 if dependData["isNeeded"]:
                                   responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
                             else:
                               if self.templateId == "2" or self.templateId == "3" or self.templateId == "4": 
+                                # print(sheetName, columnName,row[columnName], type(row[columnName]),"******", row[columnName] == row[columnName])
                                 if row[columnName] == row[columnName]: #or row[columnName] != "None":
                                   responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
                       except Exception as e:
-                        print(e,sheetName, columnName,"value attr")
+                        print(e,sheetName, columnName,dependData["dependsOn"]["dependentTabName"],dependData["dependsOn"]["dependentColumnName"],"value attr")
                         continue
 
                     elif dependData["type"] == "isInteger":
-                      for idx, row in self.xlsxData[sheetName].iterrows():
-                        if type(row[columnName]) == str:
-                          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":(dependData["suggestion"]).format(dependData["range"])})
-                        elif type(row[columnName]) == int:
-                          if len(dependData["range"]) == 2:
-                            if row[columnName] < dependData["range"][0] or row[columnName] > dependData["range"][1]:
+                      try:
+                        for idx, row in self.xlsxData[sheetName].iterrows():
+                          if row[columnName] == row[columnName]:
+                            if type(row[columnName]) == str:
                               responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":(dependData["suggestion"]).format(dependData["range"])})
-                    
+                            elif type(row[columnName]) == int or type(row[columnName]) == float:
+                              if len(dependData["range"]) == 2:
+                                if row[columnName] < dependData["range"][0] or row[columnName] > dependData["range"][1]:
+                                  responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":(dependData["suggestion"]).format(dependData["range"])})
+                            else:
+                              responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":(dependData["suggestion"]).format(dependData["range"])})
+                      except Exception as e:
+                        print(row[columnName], sheetName, columnName, "isInteger")
+                        continue
+
                     elif dependData["type"] == "isParent":
                       parentTask = []
                       subTask = []
@@ -642,13 +840,24 @@ class xlsxObject:
                                 responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":(dependData["errMessage"]).format(res), "suggestion":(dependData["suggestion"]).format(res)})
 
                     elif dependData["type"] == "integerOperator":
-                      for idx, row in self.xlsxData[sheetName].iterrows():
-                        if row[columnName] == row[columnName]:
-                          if dependData["dependsOn"]["dependentColumnValue"] == ["<"]:
-                            if row[columnName] > row[dependData["dependsOn"]["dependentColumnName"]]:
+                      try:
+                        for idx, row in self.xlsxData[sheetName].iterrows():
+                          if row[columnName] == row[columnName]:
+                            if dependData["dependsOn"]["dependentColumnValue"] == ["<"]:
+                              if row[columnName] >= row[dependData["dependsOn"]["dependentColumnName"]]:
+                                responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"]})
+                          elif dependData["dependsOn"]["dependentColumnValue"] == [">"]:
+                            if row[columnName] <= row[dependData["dependsOn"]["dependentColumnName"]]:
                               responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"]})
-                          
-
+                          elif dependData["dependsOn"]["dependentColumnValue"] == ["<="]:
+                            if row[columnName] >= row[dependData["dependsOn"]["dependentColumnName"]]:
+                              responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"]})
+                          elif dependData["dependsOn"]["dependentColumnValue"] == [">="]:
+                            if row[columnName] <= row[dependData["dependsOn"]["dependentColumnName"]]:
+                              responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"]})
+                      except Exception as e:
+                        print(row[columnName], sheetName, columnName, "integerOperator")
+                        continue
                 elif customKey == "linkCheck":
                   count = 0
                   for x in self.xlsxData[sheetName][columnName]:
