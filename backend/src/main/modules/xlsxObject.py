@@ -781,7 +781,7 @@ class xlsxObject:
                                 if dependData["isNeeded"]:
                                   responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
                             else:
-                              if self.templateId == "2" or self.templateId == "3" or self.templateId == "4": 
+                              if self.templateId != "1": 
                                 # print(sheetName, columnName,row[columnName], type(row[columnName]),"******", row[columnName] == row[columnName])
                                 if row[columnName] == row[columnName]: #or row[columnName] != "None":
                                   responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
