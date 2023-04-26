@@ -72,7 +72,11 @@ def addComments(templatePath, errResponse):
     for result in errResponse["result"]:
         for errData in errResponse["result"][result]["data"]:
             if errData["columnName"] != "":
-                spreadSheet = workBook[errData["sheetName"]]
+                try:
+                    spreadSheet = workBook[errData["sheetName"]]
+                except Exception as e:
+                    print(e, errData["sheetName"]," sheet is missing")
+                    continue
                 try:
                     columnNumber = xlsxData[errData["sheetName"]].columns.get_loc(errData["columnName"])
                 except Exception as e:
