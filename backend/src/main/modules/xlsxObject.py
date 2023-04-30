@@ -940,6 +940,10 @@ class xlsxObject:
                     if type(x) != str and x==x:
                       responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":count,"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
                       continue
+                    if x != x:
+                      responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":count,"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
+                      continue
+
                     if x[:39] == "https://docs.google.com/spreadsheets/d/":
                       x = x.split("/")[5]
                       x = "https://docs.google.com/spreadsheets/export?id={}&exportFormat=xlsx".format(x)
