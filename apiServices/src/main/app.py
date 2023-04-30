@@ -1,5 +1,5 @@
 #write your code
-from flask import Flask, request , send_from_directory, jsonify
+from flask import Flask, request , send_from_directory
 import os,time,sys
 from dotenv import load_dotenv
 import json 
@@ -15,7 +15,6 @@ import openpyxl
 from openpyxl import load_workbook
 from openpyxl.comments import Comment
 from openpyxl.styles import PatternFill
-from pymongo.errors import DuplicateKeyError
 
 
 sys.path.append('../../..')
@@ -279,8 +278,7 @@ def validate():
         return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : "True"}}
     
 
-    basicErrors = basicValidation(templateFolderPath,templateCode)
-    # advancedErrors = advancedValidation(templateFolderPath,templateCode)
+    basicErrors = xlsxObject(templateCode, templateFolderPath)
 
     if basicErrors.success:
         valErr = basicErrors.basicCondition()
@@ -288,13 +286,6 @@ def validate():
         return addComments(templateFolderPath,{"status" : 200,"code" : "OK" , "result" : {"basicErrors" : valErr,"advancedErrors" : advValErr}})
     else:
         return {"status" : 404,"code" : "ERROR" , "result" :{},"message":"Please check template id"}
-def basicValidation(templateFolderPath,templateCode):
-    return xlsxObject(templateCode, templateFolderPath)
-
-
-def advancedValidation(templateFolderPath,templateCode):
-    return {"errors" : ["a","b","c"]}
-    
 
 
 @app.route("/template/api/v1/errDownload", methods = ['GET'])

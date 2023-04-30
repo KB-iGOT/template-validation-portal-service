@@ -6,8 +6,8 @@ import numpy as np
 import wget
 import os
 import json
+from unidecode import unidecode
 from requests.models import Response
-import time
 from config import *
 
 class xlsxObject:
@@ -57,6 +57,8 @@ class xlsxObject:
     
 
   def requiredTrue(self, conditionData, sheetName, columnName,responseData):
+    # Check whether a column is present or not in a sheet of the given template
+
     if conditionData["required"]["isRequired"]:
       if columnName not in self.xlsxData[sheetName].columns:
         responseData["data"].append({"errCode":errBasic, "sheetName":sheetName,"columnName":columnName,"errMessage":conditionData["required"]["errMessage"].format(columnName),"suggestion":conditionData["required"]["suggestion"].format(columnName, sheetName)})
@@ -70,6 +72,10 @@ class xlsxObject:
 
 
   def uniqueTrue(self, conditionData, sheetName, columnName, multipleRow,responseData):
+    # Check duplicates in a column
+    # if multipleRow is true then we can have mutiple values in the column
+    # if multipleRow is false then we can not have multiple values in the column
+
     if not multipleRow:
       if self.xlsxData[sheetName].shape[0] > 1:
         if all(x["errMessage"] == conditionData["unique"]["errMessage"].format("") for x in responseData["data"]):
@@ -85,10 +91,12 @@ class xlsxObject:
 
 
   def specialCharacters(self, conditionData, sheetName, columnName,responseData):
+    # It will match the column value with a regex and if we find special character we will throw the error
+
     if columnName in self.xlsxData[sheetName].columns:
       regexCompile = re.compile(str(conditionData["specialCharacters"]["notAllowedSpecialCharacters"]))
 
-      df = self.xlsxData[sheetName][columnName].apply(lambda x: regexCompile.search(x))
+      df = self.xlsxData[sheetName][columnName].apply(lambda x: regexCompile.search(unidecode(x)))
       if not df.isnull().values.all():
         responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[df.notnull()].values).tolist(),"errMessage":conditionData["specialCharacters"]["errMessage"].format(sheetName, columnName),"suggestion":conditionData["specialCharacters"]["suggestion"]})
       
@@ -97,24 +105,32 @@ class xlsxObject:
 
 
   def specialCharacterName(self, conditionData, sheetName, columnName, responseData):
+    # It will match the column value with a regex and if we find special character we will throw the error
+
     if columnName in self.xlsxData[sheetName].columns:
       regexCompile = re.compile(str(conditionData["specialCharacterName"]["notAllowedSpecialCharacters"]))
 
-      df = self.xlsxData[sheetName][columnName].apply(lambda x: regexCompile.search(x))
+      df = self.xlsxData[sheetName][columnName].apply(lambda x: regexCompile.search(unidecode(x)))
       if not df.isnull().values.all():
         responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[df.notnull()].values).tolist(),"errMessage":conditionData["specialCharacterName"]["errMessage"].format(sheetName, columnName), "suggestion":conditionData["specialCharacterName"]["suggestion"]})
     return responseData
 
   def projectsSpecialCharacter(self, conditionData, sheetName, columnName, responseData):
+    # It will match the column value with a regex and if we find special character we will throw the error
+
     if columnName in self.xlsxData[sheetName].columns:
       regexCompile = re.compile(str(conditionData["projectsSpecialCharacter"]["notAllowedSpecialCharacters"]))
 
-      df = self.xlsxData[sheetName][columnName].apply(lambda x: regexCompile.search(x))
+      df = self.xlsxData[sheetName][columnName].apply(lambda x: regexCompile.search(unidecode(x)))
       if not df.isnull().values.all():
         responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":(df.index[df.notnull()].values).tolist(),"errMessage":conditionData["projectsSpecialCharacter"]["errMessage"].format(sheetName, columnName), "suggestion":conditionData["projectsSpecialCharacter"]["suggestion"]})
     return responseData
 
   def recommendedForCheck(self, conditionData, sheetName, columnName, multipleRow,responseData):
+    # It will check whether given role is valid or not
+    # valid roles are stored in recommendedForCheck in condition collection and we can add roles using userRoles/update API
+    # We can check added roles using userRoles/list API
+
     rolesList = []
     for roles in conditionData["recommendedForCheck"]["roles"]:
       rolesList.append(roles["code"])
@@ -133,6 +149,8 @@ class xlsxObject:
     return responseData
   
   def dateFormatFun(self, conditionData, sheetName, columnName,responseData):
+    # We are checking date format it can be changed inside condition collection 
+
     if columnName in self.xlsxData[sheetName].columns:
       if conditionData["dateFormat"]["format"] == "DD-MM-YYYY":
         self.dateFormat = "%d-%m-%Y"
@@ -150,6 +168,8 @@ class xlsxObject:
   
 
   def pdRoleCheck(self, conditionData, sheetName, columnName, newToken, multipleRow,responseData):
+    # We are using user search API to check whether the user has program designer role or not
+
     self.xlsxData[sheetName] = self.xlsxData[sheetName].drop(columns="isEmail", errors="ignore")
     self.xlsxData[sheetName][columnName] = self.xlsxData[sheetName][columnName].fillna("None")
     self.xlsxData[sheetName]["isEmail"] = self.xlsxData[sheetName][columnName].apply(lambda x: re.fullmatch(self.emailRegex, x))
@@ -185,6 +205,9 @@ class xlsxObject:
 
     
   def stateCheck(self, conditionData, sheetName, columnName,responseData):
+    # We are checking that given state is valid or not 
+    # We are stroing code for each state in order to get valid sub roles
+
     if self.xlsxData[sheetName][columnName].iloc[0] == self.xlsxData[sheetName][columnName].iloc[0]:
       stateList = [item.strip() for item in self.xlsxData[sheetName][columnName].iloc[0].split(",")]
       for stateName in stateList:
@@ -202,6 +225,7 @@ class xlsxObject:
 
 
   def districtCheck(self, conditionData, sheetName, columnName,responseData):
+    # We are checking that given district is valid or not 
 
     if columnName in self.xlsxData[sheetName].columns:  
         
@@ -221,6 +245,8 @@ class xlsxObject:
   
 
   def pmRoleCheck(self, conditionData, sheetName, columnName, newToken, multipleRow,responseData):
+    # We are using user search API to check whether the user has program manager role or not
+
     self.xlsxData[sheetName] = self.xlsxData[sheetName].drop(columns="isEmail", errors="ignore")
     self.xlsxData[sheetName][columnName] = self.xlsxData[sheetName][columnName].fillna("None")
     self.xlsxData[sheetName]["isEmail"] = self.xlsxData[sheetName][columnName].apply(lambda x: re.fullmatch(self.emailRegex, x))
@@ -255,6 +281,8 @@ class xlsxObject:
     return responseData
 
   def ccRoleCheck(self, conditionData, sheetName, columnName, newToken, multipleRow,responseData):
+    # We are using user search API to check whether the user has content creator role or not
+    
     self.xlsxData[sheetName] = self.xlsxData[sheetName].drop(columns="isEmail", errors="ignore")
     self.xlsxData[sheetName][columnName] = self.xlsxData[sheetName][columnName].fillna("None")
     self.xlsxData[sheetName]["isEmail"] = self.xlsxData[sheetName][columnName].apply(lambda x: re.fullmatch(self.emailRegex, x))
@@ -287,6 +315,8 @@ class xlsxObject:
     return responseData
 
   def storeResponse(self, conditionData, sheetName, columnName, multipleRow,responseData):
+    # We are storing values particular values defined in condition collections of a row in response attribute
+
     self.response = {}
     for idx, row in self.xlsxData[sheetName].iterrows():
       if idx > 1 and not multipleRow:
@@ -295,8 +325,10 @@ class xlsxObject:
       for col in conditionData["storeResponse"]["columnNames"]:
         self.response[row[columnName]][col] = row[col]
     return responseData
-  
+
   def storeScore(self, sheetName, columnName):
+    # We are initializing min max scores for each criteria given in the sheet
+     
     self.score = {}
     for idx, row in self.xlsxData[sheetName].iterrows():
       try:
@@ -309,6 +341,8 @@ class xlsxObject:
         continue
   
   def updateScore(self, sheetName, columnName):
+    # We are updating the min max scores for each criteria given in the sheet
+
     for idx, row in self.xlsxData[sheetName].iterrows():
       try:
         if row["question_response_type"] == "radio" or row["question_response_type"] == "multiselect":
@@ -322,6 +356,8 @@ class xlsxObject:
         continue
   
   def calculateCriteriaRange(self, sheetName, columnName):
+    # We are calculating the final range of each criteria given in the sheet
+
     for idx, row in self.xlsxData[sheetName].iterrows():
       try:
         criteria = row[columnName]
@@ -338,6 +374,8 @@ class xlsxObject:
         continue
   
   def calculateDomainRange(self, sheetName, columnName):
+    # Based on each criteria's range we are calculating range for each domains
+
     self.domainScore = {}  
     for idx, row in self.xlsxData[sheetName].iterrows():
       try:
@@ -359,6 +397,9 @@ class xlsxObject:
         continue
 
   def stringToRange(self, scoreString):
+    # This function returns range for a given string 
+    # For example it will return [1.1,1.2,1.3......,10] for this input string ["1", SCORE, "=10"] (before spiltting it was 1<SCORE<=10)
+
     if len(scoreString[1]) == 5 and scoreString[2][0] != "=":
       testRange = np.arange(float(scoreString[0])+0.1,float(scoreString[2]),0.1)
       testRange = [round(x,2) for x in testRange]
@@ -372,10 +413,11 @@ class xlsxObject:
       testRange = np.arange(float(scoreString[0]),float(scoreString[2][1:])+0.1,0.1)
       testRange = [round(x,2) for x in testRange]
     
-    return testRange
-          
+    return testRange     
   
   def checkCriteriaRange(self, sheetName, columnName, responseData):
+    # We have calculated each criteria's range so we are checking if each levels are in criteria's range  
+
     for idx, row in self.xlsxData[sheetName].iterrows():
       try:
         if columnName in self.xlsxData[sheetName].columns.values:
@@ -392,10 +434,11 @@ class xlsxObject:
         print(e, sheetName, columnName, "checkCriteriaRange")
         continue
 
-    return responseData
-            
+    return responseData      
 
   def checkDomainRange(self, sheetName, columnName, responseData):
+    # We have calculated each domain's range so we are checking if each levels are in domain's range
+
     for idx, row in self.xlsxData[sheetName].iterrows():
       try:
         if columnName in self.xlsxData[sheetName].columns.values:
@@ -414,6 +457,8 @@ class xlsxObject:
     return responseData
   
   def helperFunction(self, testRange, testRangeList, index, idx,sheetName, columnName,responseData):
+    # Helper function to check intersection between different levels
+
     for x, tempList in enumerate(testRangeList):
       if any(x in testRange for x in tempList):
         if sheetName == "Criteria_Rubric-Scoring":
@@ -426,6 +471,8 @@ class xlsxObject:
     return responseData
   
   def checkRangeIntersection(self, sheetName, columnName, responseData):
+    # Main function to check intersection between different levels
+    
     for idx, row in self.xlsxData[sheetName].iterrows():
       try:
         testRangeList = []
@@ -443,20 +490,14 @@ class xlsxObject:
   
     return responseData
   
-  def checkSheetExists(self):
-    for data in self.metadata["validations"]:
-      sheetName = data["name"]
-      if data["required"]:
-        if not data["multipleRowsAllowed"]: 
-          if self.xlsxData[sheetName].shape[0] > 1:
-            return False, sheetName+" does not allow multiple row"
-        if sheetName not in list(self.xlsxData.keys()):
-          return False,data["errMesage"].format(sheetName), data["suggestion"].format(sheetName)
-    return True 
   
   def basicCondition(self):
     responseData = {"data":[]}
     collection = self.validationDB[conditionCollection]
+
+    # Query tokenConfig from conditions collection and check whether the generated token is expired or not
+    # If it's not expired use the old token else generate new one
+
     query = {"name": "tokenConfig"}
     result = collection.find(query)
     for tokenConfig in result:
@@ -474,6 +515,8 @@ class xlsxObject:
         else:
           newToken = Response()
           newToken._content = json.dumps(tokenConfig["result"]).encode('utf-8')
+
+    # Check each condition for every column of every sheet in the template
     collection = self.validationDB[conditionCollection]
     for data in self.metadata["validations"]:
       sheetName = data["name"]
@@ -576,34 +619,47 @@ class xlsxObject:
                   print(e, sheetName, columnName,"storeResponse")
                   continue
               
-              
+            # If a common condition doesn't have any metadata in the collection column
+            # This conditions are very small so we have not stored them in the collection
+
             if result.count() == 0:
               if conditionName == "incrementLevel":
+                # Used to update levels given in template id 5 and 6
                 if columnName in self.xlsxData[sheetName].keys():
                   self.criteriaLevel += 1
                   self.domainLevel += 1
                   self.mapLevel += 1
               
               elif conditionName == "decrementCriteriaLevel":
+                # Decrement the criteria levels if it's defined
                 if columnName in self.xlsxData[sheetName].keys():
                   self.criteriaLevel -= 1
 
               elif conditionName == "decrementDomainLevel":
+                # Decrement the domain levels if it's defined
                 if columnName in self.xlsxData[sheetName].keys():
                   self.domainLevel -= 1
+
               elif conditionName == "decrementMapLevel":
+                # Decrement the map levels if it's defined
                 if columnName in self.xlsxData[sheetName].keys():
                   self.mapLevel -= 1
 
               elif conditionName == "lastCriteriaLevel":
+                # If the attribute is 0 that means criteria levels are matching
+
                 if self.criteriaLevel != 0:
                   responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":self.xlsxData[sheetName].columns[-2],"rowNumber":0,"errMessage":"Criteria level is not same as in framework", "suggestion":"Please add or remove levels based on framework sheet"})
 
               elif conditionName == "lastDomainLevel":
+                # If the attribute is 0 that means domain levels are matching
+
                 if self.domainLevel != 0:
                   responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":self.xlsxData[sheetName].columns[-2],"rowNumber":0,"errMessage":"Domain level is not same as in framework", "suggestion":"Please add or remove levels based on framework sheet"})
               
               elif conditionName == "lastMapLevel":
+                # If the attribute is 0 that means map levels are matching
+
                 if self.mapLevel != 0:
                   responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":self.xlsxData[sheetName].columns[-2],"rowNumber":0,"errMessage":"Mapping level is not same as in framework", "suggestion":"Please add or remove levels based on framework sheet"})
                 
@@ -634,6 +690,7 @@ class xlsxObject:
               elif conditionName == "checkRangeIntersection":
                 responseData = self.checkRangeIntersection(sheetName, columnName, responseData)
       else:
+        # If sheet is not present and it's required then store the error
         if data["required"]:
           responseData["data"].append({"errCode":errBasic, "sheetName":sheetName, "columnName":"","errMessage":data["errMessage"].format(sheetName),"suggestion":data["suggestion"].format(sheetName)})
     
@@ -654,6 +711,8 @@ class xlsxObject:
               for customKey in columnData["customConditions"].keys():
                 
                 if customKey == "requiredValue":
+                  # This function will check column contains reqiured value or not
+
                   for idx, row in self.xlsxData[sheetName].iterrows():
                     if idx > 1 and not multipleRow:
                       break
@@ -676,8 +735,10 @@ class xlsxObject:
                     
                     if dependData["type"] == "operator":
                       try:
-                        dateColumn = pd.to_datetime(self.xlsxData[sheetName][columnName], format='%d-%m-%Y')
-                        baseDateColumn = pd.to_datetime(self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]], format='%d-%m-%Y')
+                        # This function will check start datE and end date based on operator sign
+
+                        dateColumn = pd.to_datetime(self.xlsxData[sheetName][columnName], format=self.dateFormat)
+                        baseDateColumn = pd.to_datetime(self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]], format=self.dateFormat)
                         
                         if dependData["dependsOn"]["dependentTabName"] == "Program Details" and sheetName != "Program Details":
                           baseDateColumn = pd.Series([baseDateColumn.iloc[0]]*dateColumn.size) 
@@ -695,41 +756,13 @@ class xlsxObject:
                       except Exception as e:
                         print(e, sheetName, "operator")
                         continue
-                      
-                    
-                    elif dependData["type"] == "attribute":
-                      df = self.xlsxData[sheetName][columnName].str.split(",").apply(lambda x : [y.strip() for y in x])
-                      attributeData = getattr(self,dependData["attributeName"])
-                      count = 0
-                        
-                      for testList in df:
-                        count += 1
-                        if count > 1 and not multipleRow:
-                          break
-                  
-                        for test in testList:
-                          try:
-                            if test in attributeData[self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]].iloc[count-1]].keys():
-                              print("Allowed", sheetName, columnName,test)
-                            elif "attributeKey" in dependData.keys():
-                              if test == attributeData[self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]].iloc[count-1]][dependData["attributeKey"]]:
-                                print("Allowed", sheetName, columnName,test)
-                              else:
-                                print("Not allowed", sheetName, columnName, test)
-                                responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":count,"errMessage":dependData["errMessage"].format(test), "suggestion":dependData["suggestion"]})
-                            else:
-                              print("Not alllowed", sheetName, columnName,test)
-                              responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":count,"errMessage":dependData["errMessage"].format(test), "suggestion":dependData["suggestion"]})
-                          except Exception as e:
-                            responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":count,"errMessage":dependData["errMessage"].format(testList), "suggestion":dependData["suggestion"]})
-                            print(e, sheetName, columnName, "attribute")
-                            continue
-
-                        count += 1
-                    
+      
                     
                     elif dependData["type"] == "condition":
                       if dependData["conditionName"] == "subRoleCheck":
+                        # This function will 1st store all valid sub roles for given states
+                        # Then it will validate the subroles 
+
                         allowedSubRole = []
                         collection = self.validationDB[conditionCollection]
                         query = {"name": "subRoleCheck"}
@@ -758,6 +791,8 @@ class xlsxObject:
 
                     
                     elif dependData["type"] == "subset":
+                      # This function will check whether one column is a subset of another or not
+
                       df = (self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]].str.split(",")).apply(pd.Series).stack().unique().tolist()
                       df = [item.strip() for item in df]
 
@@ -772,6 +807,17 @@ class xlsxObject:
                                         
                     elif dependData["type"] == "value":
                       try:
+                        # There are three scenarios in this custom condition
+                        
+                        # 1. If the dependentColumnValue list is empty
+                        #   If the current column has some value and the dependent column has also a value then it will throw an error
+                       
+                        # 2. If the dependentColumnValue list has *
+                        #   If the current column has some value and the dependent column is empty then it will throw an error
+                       
+                        # 3. If the dependentColumnValue list has some custom values
+                        #   the current column will become mandatory if dependent column has any custom value
+
                         for idx, row in self.xlsxData[sheetName].iterrows():
                           if idx > 1 and not multipleRow:
                             break
@@ -810,6 +856,9 @@ class xlsxObject:
 
                     elif dependData["type"] == "isInteger":
                       try:
+                        # It will check whether the column has integer values or not in the given range
+                        # If the range list is empty then it will just check the value type only
+
                         for idx, row in self.xlsxData[sheetName].iterrows():
                           if row[columnName] == row[columnName]:
                             if type(row[columnName]) == str:
@@ -825,6 +874,8 @@ class xlsxObject:
                         continue
 
                     elif dependData["type"] == "isParent":
+                      # This function will check whether a parent is defined before the sub task or not
+
                       parentTask = []
                       subTask = []
                       for idx, row in self.xlsxData[sheetName].iterrows():
@@ -838,13 +889,9 @@ class xlsxObject:
                         parentTask.append(row[dependData["dependsOn"]["dependentColumnName"]])
                         subTask.append(row[columnName])
                     
-                    elif dependData["type"] == "checkTask":
-                      for idx, row in self.xlsxData[sheetName].iterrows():
-                        if row[columnName] == row[columnName]:
-                          if row["TaskId"] in self.xlsxData[sheetName][dependData["dependsOn"]["dependentColumnName"]].values.tolist():
-                            responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"]})
-
                     elif dependData["type"] == "checkResponse":
+                      # It will check stored values with the valid values
+
                       for idx, row in self.xlsxData[sheetName].iterrows():
                         if row[columnName] == row[columnName]:
                           if len(dependData["dependsOn"]["dependentColumnValue"]) != 0 :
@@ -859,6 +906,8 @@ class xlsxObject:
                                 responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":(dependData["errMessage"]).format(res), "suggestion":(dependData["suggestion"]).format(res)})
 
                     elif dependData["type"] == "integerOperator":
+                      # This function will compare the integer values of one column from another
+                      # Current column "operator < or >" dependent column 
                       try:
                         for idx, row in self.xlsxData[sheetName].iterrows():
                           if row[columnName] == row[columnName]:
@@ -877,7 +926,11 @@ class xlsxObject:
                       except Exception as e:
                         print(row[columnName], sheetName, columnName, "integerOperator")
                         continue
+                
                 elif customKey == "linkCheck":
+                  # This function checks whether the drive link are publicly accessible or not
+                  # If the link is diksha link then it will check it's status using API
+
                   count = 0
                   for x in self.xlsxData[sheetName][columnName]:
                     count += 1
@@ -887,7 +940,6 @@ class xlsxObject:
                     if type(x) != str and x==x:
                       responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":count,"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
                       continue
-
                     if x[:39] == "https://docs.google.com/spreadsheets/d/":
                       x = x.split("/")[5]
                       x = "https://docs.google.com/spreadsheets/export?id={}&exportFormat=xlsx".format(x)
@@ -898,9 +950,14 @@ class xlsxObject:
                         else:
                           os.remove(resourcePath)
                       except Exception as e:
-                        responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":str(count),"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
+                        responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":count,"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
                         print(e, sheetName, columnName,"linkCheck")
                         continue
+                    elif x[:25] == "https://drive.google.com/":
+                      response = requests.get(x)
+                      if "ServiceLogin" in response.url:
+                        responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":count,"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
+                        
                     else:
                       try:
                         x = requests.get("https://diksha.gov.in/api/content/v1/read/"+x.split("/")[-1].split("?")[0])
