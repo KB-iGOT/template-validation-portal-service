@@ -843,7 +843,8 @@ class xlsxObject:
 
 
                             if any(item in df for item in dependData["dependsOn"]["dependentColumnValue"]):
-                              if row[columnName] != row[columnName]: #or row[columnName] == "None":
+                              print(len(row[columnName]), sheetName, columnName)
+                              if row[columnName] != row[columnName] or row[columnName] == "None":
                                 if dependData["isNeeded"]:
                                   responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
                             else:
@@ -918,10 +919,10 @@ class xlsxObject:
                             if row[columnName] <= row[dependData["dependsOn"]["dependentColumnName"]]:
                               responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"]})
                           elif dependData["dependsOn"]["dependentColumnValue"] == ["<="]:
-                            if row[columnName] >= row[dependData["dependsOn"]["dependentColumnName"]]:
+                            if row[columnName] > row[dependData["dependsOn"]["dependentColumnName"]]:
                               responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"]})
                           elif dependData["dependsOn"]["dependentColumnValue"] == [">="]:
-                            if row[columnName] <= row[dependData["dependsOn"]["dependentColumnName"]]:
+                            if row[columnName] < row[dependData["dependsOn"]["dependentColumnName"]]:
                               responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"]})
                       except Exception as e:
                         print(row[columnName], sheetName, columnName, "integerOperator")
