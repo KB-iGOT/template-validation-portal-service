@@ -15,6 +15,10 @@ import openpyxl
 from openpyxl import load_workbook
 from openpyxl.comments import Comment
 from openpyxl.styles import PatternFill
+from bson import json_util
+# importing ObjectId from bson library
+from bson.objectid import ObjectId
+from datetime import datetime
 
 
 sys.path.append('../../..')
@@ -34,23 +38,26 @@ def myconverter(obj):
 
 
 STATIC_PATH = os.path.join(os.getcwd(),"tmp")
-app = Flask(__name__,static_url_path="/tmp/")
-CORS(app)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-dotenv_path = os.path.join(BASE_DIR, '.env')  # just an e.g
 
+app = Flask(__name__,static_url_path="/tmp/")
+
+# enable CORS for the app 
+CORS(app)
+# get the base directory 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# load the .env file 
+dotenv_path = os.path.join(BASE_DIR, '.env')  
+# check env file  is accessible or not
 if os.path.exists(dotenv_path):
     load_dotenv(dotenv_path)
 else:
-    import sys
     print('".env" is missing.')
     sys.exit(1)
-
+# connect to mongo db and collection instance function 
 def connectDb(url,db,collection):
     client = pymongo.MongoClient(url)
     db = client[db]
     collectionData = db[collection]
-    # print("Connection Status : ",client.server_info())
     return collectionData
 
 def addComments(templatePath, errResponse):
@@ -66,7 +73,7 @@ def addComments(templatePath, errResponse):
             xlsxData[key].columns = newHeader
     except Exception as e:
         workBook.save(errPath)
-        errResponse["result"]["errFileLink"] = "http://34.143.225.1/template/api/v1/errDownload?templatePath="+errPath
+        errResponse["result"]["errFileLink"] = os.environ.get("HOSTIP")+"/template/api/v1/errDownload?templatePath="+errPath
         return errResponse
     for result in errResponse["result"]:
         for errData in errResponse["result"][result]["data"]:
@@ -121,99 +128,255 @@ def addComments(templatePath, errResponse):
 
                     
     workBook.save(errPath)
-    errResponse["result"]["errFileLink"] = "http://34.143.225.1/template/api/v1/errDownload?templatePath="+errPath
+    errResponse["result"]["errFileLink"] = os.environ.get("HOSTIP")+"/template/api/v1/errDownload?templatePath="+errPath
     return errResponse
 
+# Login user API 
 @app.route("/template/api/v1/authenticate", methods = ['POST'])
 def login():
     req_body = request.get_json()
-    savedUSERNAME = os.environ.get('email')
-    savedPASSWORD = os.environ.get('password')
     try:
+        # get the user name from request 
         userName = req_body['request']['email']
+        # get the password from request and hash it in md5 
         password = hashlib.md5(req_body['request']['password'].encode('utf-8'))
 
-        client = pymongo.MongoClient(os.environ.get('mongoURL'))
-
-        db = client[os.environ.get('db')]
+        # connect to user collection 
+        usersCollection = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),'userCollection')
         
-        usersCollection = db[os.environ.get('userCollection')]
-        
+        # query the username and hashed password pair is present in DB
         users = usersCollection.count_documents({'userName' : userName , "password" : str(password.hexdigest())})
 
+        # check the user result 
         if(users):
             # Exipry and other details can be added here
             message = {
                 'iss': '',
                 'email': userName
                 }
+            
+            # secret key from the env file 
             signing_key = os.environ.get("SECRET_KEY")
+            # encode the user name and expiry to create a token 
             encoded_jwt = jwt.encode({'message': message}, signing_key, algorithm='HS256')
 
-
+            # return the token after successful authentication 
             return {"status" : 200,"code" : "Authenticated","errorFlag" : False,"error" : [],"response" : {
                 "accessToken" : encoded_jwt
             }}
         else:
+            # return authentication failed error 
             return {"status" : 404,"code" : "Error","errorFlag" : True,"error" : ["Username / Password Doesn't Match"],"response" : {
                 "accessToken" : "" }}
     except Exception as e:
+        # throw the error 
         return {"status" : 500,"code" : str(e) ,"errorFlag" : True,"error" : ["Error in reaching server"],"response" : {
                 "accessToken" : "" }}
 
+# sign up API
 @app.route("/template/api/v1/signup", methods = ['POST'])
 def signup():
     req_body = request.get_json()
+    # get the 'admin-token' from the request header 
     auth = request.headers.get('admin-token')
+    # check for the auth token 
     if(not auth):
+        # if the auth token is missing return authorization failed 
         return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
     else:
+        # the auth token is present in the header and check the token present in the env file 
         if not auth == os.environ.get('admin-token'):
             return {"status" : 500,"code" : "Not Authorized" , "result" : {"templateLinks" : ""}}
 
+    # if auth is checked 
     try:
+        # get the username from request body 
         userName = req_body['request']['email']
+        # get the password from request body and hash it
         password = hashlib.md5(req_body['request']['password'].encode('utf-8'))
+        # connect to users collection in mongo DB
+        usersCollection = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),'userCollection')
 
-        client = pymongo.MongoClient(os.environ.get('mongoURL'))
-
-        db = client[os.environ.get('db')]
-        
-        usersCollection = db[os.environ.get('userCollection')]
+        # get the current time 
         now = datetime.datetime.now()
+        # query the given username
         users = usersCollection.count_documents({'userName' : userName})
-        
+        # check if the username is already present or not 
         if(users <= 0):
+            # not present create the user in DB 
             users = usersCollection.insert_one({'userName' : userName , "password" : str(password.hexdigest()),"status" : "active","role" : "admin","createdAt" : str(now),"updatedAt" : str(now),"createdBy" : "admin"})
+            # return success message 
             return {"status" : 200,"code" : "Authenticated","errorFlag" : False,"error" : [],"response" : "User created Successfully."}
         else:
+            # return user already exists 
             return {"status" : 404,"code" : "Error","errorFlag" : True,"error" : ["UserName already exisiting."],"response" : {"accessToken" : "" }}
     except Exception as e:
+        # return error 
         return {"status" : 500,"code" : str(e) ,"errorFlag" : True,"error" : ["Error in reaching server"],"response" : {"accessToken" : "" }}
 
-
+# sample template downloader api
 @app.route("/template/api/v1/download/sampleTemplate", methods = ['GET'])
 def sample():
-    templateList = os.environ.get('templateList').split(",")
+    errors = []
+
+    # connect to db 
+    try:       
+        sampleTemplate = connectDb(os.environ.get("mongoURL"),os.environ.get("db"),os.environ.get("sampleTemplatesCollection"))
+    except Exception as e:
+        errors.append(e)
     templateListResp = []
-    tem = os.environ.get('templateIds')
-    tem = json.loads(tem)
- 
-    for i in templateList:
-        templateListResp.append({"templateName" : i, "templateLink" : os.environ.get(i) , "templateCode" : tem[i]})
+    # find the list of entries from sampleTemplatesCollection
+    sampleTemplateResponse = sampleTemplate.find({})
+    for index in sampleTemplateResponse:
+        templateListResp.append({"templateName" : index['templateName'], "templateLink" : index['templateLink'] , "templateCode" : index['templateCode']})
 
     return {"status" : 200,"code" : "OK" , "result" : {"templateLinks" : templateListResp}}
 
+
+@app.route("/template/api/v1/add/sampleTemplate", methods = ['POST'])
+def sampleAdd():
+    errors = []
+    # get body from the request 
+    req_body = request.get_json()
+    # fetch admin token from headers 
+    admin_token = request.headers.get('admin-token')
+    # validation of admin token 
+    if(not admin_token):
+        return {"status" : 500,"code" : "Admin Authorization key missing" , "result" : []}
+    
+    if not admin_token == os.environ.get("admin-token"):
+        return {"status" : 500,"code" : "Admin Authorization Failed" , "result" : []}
+    
+    # connect with sampleTemplate collection 
+    try:       
+        sampleTemplate = connectDb(os.environ.get("mongoURL"),os.environ.get("db"),os.environ.get("sampleTemplatesCollection"))
+    except Exception as e:
+        errors.append(e)
+
+    templateListResp = []
+    # get the list of sample templates 
+    sampleTemplateResponse = sampleTemplate.find({})
+    maxTemplateCode = 0
+    # get the max id value 
+    for index in sampleTemplateResponse:
+        if index['templateCode'] > maxTemplateCode :
+            maxTemplateCode = index['templateCode']
+    # increment one to max id value present in the DB 
+    maxTemplateCode = maxTemplateCode +1
+    # get current time 
+    now = datetime.now()
+ 
+    # Creating Dictionary of records to be inserted
+    record = { "templateCode": maxTemplateCode,
+              "templateName": req_body['request']['templateName'],
+              "templateLink": req_body['request']['templateLink'],
+              "createdBy": "admin",
+              "updatedBy" : "admin",
+              "createdAt" : now,
+              "updatedAt" : now
+              }
+    
+    db_result = sampleTemplate.insert_one(record)
+
+    if not db_result.inserted_id : 
+        errors.append("Insertion failed.")
+        errors.append(db_result.inserted_id)
+    
+
+    templateListResp = []
+    sampleTemplateResponse = sampleTemplate.find({})
+    for index in sampleTemplateResponse:
+        templateListResp.append({"templateName" : index['templateName'], "templateLink" : index['templateLink'] , "templateCode" : index['templateCode']})
+    if len(errors) <= 0:
+        return {"status" : 200,"code" : "OK" ,"message" : "Template added successfully", "result" : {"templateLinks" : templateListResp}}
+    else:
+        return {"status" : 200,"code" : "NOTOK" ,"message" : "Template adding failed", "result" : {}}
+
+@app.route("/template/api/v1/update/sampleTemplate/<code>", methods = ['POST'])
+def sampleUpdate(code):
+    errors = []
+    # get body from the request 
+    req_body = request.get_json()
+    # fetch admin token from headers 
+    admin_token = request.headers.get('admin-token')
+    # validation of admin token 
+    if(not admin_token):
+        return {"status" : 500,"code" : "Admin Authorization key missing" , "result" : []}
+    
+    if not admin_token == os.environ.get("admin-token"):
+        return {"status" : 500,"code" : "Admin Authorization Failed" , "result" : []}
+    
+    # connect with sampleTemplate collection 
+    try:       
+        sampleTemplate = connectDb(os.environ.get("mongoURL"),os.environ.get("db"),os.environ.get("sampleTemplatesCollection"))
+    except Exception as e:
+        errors.append(e)
+
+    # get current time 
+    now = datetime.now()
+
+    argKeys = [key for key in req_body['request'].keys()]
+
+    if len(argKeys) <= 0:
+        return {"status" : 200,"code" : "NOTOK" ,"message" : "Body cannot be empty", "result" : {}}
+    # Creating Dictionary of records to be updated
+    record = { 
+              "updatedAt" : now
+              }
+    # identify the key updating in the body 
+    if 'templateName' in argKeys :
+        record["templateName"] = req_body['request']['templateName']
+    if  'templateLink' in argKeys :
+        record["templateLink"] = req_body['request']['templateLink']
+
+    
+    # create the update value 
+    newvalues = { "$set":  record  }
+    # filter by template code passed in the api 
+    filter = { 'templateCode': int(code) }
+ 
+    updateResult = sampleTemplate.update_one(filter, newvalues)
+
+    templateListResp = []
+    sampleTemplateResponse = sampleTemplate.find({})
+    for index in sampleTemplateResponse:
+        templateListResp.append({"templateName" : index['templateName'], "templateLink" : index['templateLink'] , "templateCode" : index['templateCode']})
+    
+    if updateResult.matched_count > 0 :
+        return {
+            "code": "OK",
+            "count": updateResult.matched_count,
+            "error": errors,
+            "message" : "Sample tempalate Updated Successfully",
+            "result": { "templateLinks" : templateListResp}
+            }
+    else:
+        return {
+            "code": "OK",
+            "count": updateResult.matched_count,
+            "message" : "Sample tempalate Update failed",
+            "error": errors,
+            "result": {}
+                
+            }
+
+
+# API to upload excel file to server 
 @app.route("/template/api/v1/upload", methods = ['POST'])
 def upload():
 
-    # Token validation
+    # get auth Token for validation
     auth = request.headers.get('Authorization')
+    # get SECRET_KEY for validation
     signing_key = os.environ.get("SECRET_KEY")
+
     payload = False
+    # check if auth token is present in the header 
     if(not auth):
         return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
     else:
+
+        # decode the payload with signing_key to check if the user is authentic 
         try:
             payload = jwt.decode(auth, signing_key, algorithms=['HS256'])
         except Exception as e:
@@ -222,18 +385,20 @@ def upload():
     if(not payload):
         return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : "True"}}
     
+    # set the allowed extensions to upload 
     ALLOWED_EXTENSIONS = set(['xlsx'])
 
+    # set static path to upload to the file  create the folder in server if not created.
     if not os.path.exists(STATIC_PATH):
         os.makedirs(STATIC_PATH)
-
+    # check the request method 
     if request.method == 'POST':
         # check if the post request has the file part
-
         if 'file' not in request.files:
             return {"status" : 500,"code" : "Required key missing!" , "result" : {"templateLinks" : ""}}
+        # get the file from request 
         file = request.files['file']
-
+        # extract extension from file     
         ext = file.filename.split('.')
         if file and ext[1] in ALLOWED_EXTENSIONS:
             filename = file.filename
@@ -243,14 +408,17 @@ def upload():
 
             # ts stores the time in seconds
             ts = str(time.time()).replace(".","-")
+            # checnge the file name 
             finalFileName = str(filenameArr[0])+str(ts)+"."+str(filenameArr[1])
             try:
+                # save the file in the server 
                 file.save(os.path.join(STATIC_PATH, finalFileName))
-                # print(os.path.join(STATIC_PATH, finalFileName))
-
             except Exception as e:
+                # print any error in saving file 
                 print(e)
+                # return error status 
                 return {"status" : 500,"code" : "Server Error" , "result" : {"templatePath" : ""}}
+            # return path of the file saved in the local server 
             return {"status" : 200,"code" : "OK" , "result" : {"templatePath" : os.path.join(STATIC_PATH, finalFileName),"templateName" : finalFileName}}
 
         
@@ -293,17 +461,22 @@ def errDownload():
     templateFolderPath = request.args.get("templatePath")
     return send_from_directory(os.path.dirname(templateFolderPath), os.path.basename(templateFolderPath), as_attachment=True)
 
+# show the user roles list 
 @app.route("/template/api/v1/userRoles/list", methods = ['GET'])
 def userRoles():
     returnResponse = {}
+    # connect to conditions Collection
     subRoles = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),os.environ.get('conditionsCollection'))
+    # query recommendedForCheck condition 
     returnResponseTmp = subRoles.find({"name" : "recommendedForCheck"})
     
     if returnResponseTmp:
         returnResponse["status"] = 200
         returnResponse["code"] = "OK"
+        # return roles details 
         returnResponse["result"] = returnResponseTmp[0]['recommendedForCheck']['roles']
     return returnResponse
+
 
 # Update and add new subroles using this API
 @app.route("/template/api/v1/userRoles/update", methods = ['POST'])
@@ -382,74 +555,144 @@ def update():
     
     return {"status" : 200,"code" : "OK", "result" : result,"error" : error}
 
+# list the validation rules 
+@app.route("/template/api/v1/validations/list", methods = ['GET'])
+def list():
+    client = pymongo.MongoClient(os.environ.get('mongoURL'))
+    args = request.args
+    validationsRes = None
+    # Token validation
+    admin_token = request.headers.get("admin-token")
 
-# @app.route("/support/api/v1/userRoles/bulkUpload", methods = ['POST'])
-# def bulkUpload():
+    if(not admin_token):
+        return {"status" : 500,"code" : "Admin Authorization key missing" , "result" : []}
+    
+    if not admin_token == os.environ.get("admin-token"):
+        return {"status" : 500,"code" : "Admin Authorization Failed" , "result" : []}
+    
+    # fetching the keys from arguments 
+    argKeys = [key for key in args.keys()]
+    query = {}
+    errors = []
+    # preparing the query to find() from the keys passed in arguments 
+    if "id" in argKeys:
+        query.update({"id": args["id"]})
+    if "resourceType" in argKeys:
+        query.update({"resourceType": args["resourceType"]})
+    
+    # connecting with DB and validations collection 
+    try:       
+        validationsCollection = connectDb(os.environ.get("mongoURL"),os.environ.get("db"),os.environ.get("validationsCollection"))
+    except Exception as e:
+        errors.append(e)
 
-#     error = ""
+    # running the find query 
+    try:  
+        validationsRes = validationsCollection.find(query)
+    except Exception as e:
+        print(e)
+    # get count of result 
+    try:
+        validationsCount = validationsCollection.count_documents(query)
+    except Exception as e:
+        print(e)
+    result = []
 
-#     req_body = request.get_json()
+    # preare result to display 
+    for index in validationsRes:
+        index["_id"] = str(index["_id"])
+        result.append(index)
 
-#     req_body = req_body['content']
+    return {"status" : 200,"code" : "OK","count" : validationsCount, "result" : json.loads(json_util.dumps(result)),"error" : errors}
 
-#     result = {
-#         "data"  : []
-#     }
-                
+# update validation using id 
+@app.route("/template/api/v1/validations/update/<_id>", methods = ['POST'])
+def updateValidations(_id):
+    errors = []
+    req_body = request.get_json()
 
-#     auth = request.headers.get('admin-token')
+    # Token validation
+    admin_token = request.headers.get("admin-token")
 
-#     if(not auth):
-#         return {"status" : 500,"code" : "Authorization Failed" , "result" : []}
-#     else:
-#         if not auth == os.environ.get('admin-token'):
-#             return {"status" : 500,"code" : "Not Authorized" , "result" : []}
-#     try:
-#         mydict = []
+    if(not admin_token):
+        return {"status" : 500,"code" : "Admin Authorization key missing" , "result" : []}
 
-#         subRoles = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),os.environ.get('subRoleCollection'))
-        
-#         for index in req_body:
-#             chechSubRole = subRoles.count_documents({"code" : index['code']})
-#             if chechSubRole > 0:
-#                 error = "Duplicate Key error"
-#             else:
-#                 error = None
-#                 if index['code'] == None or index['title'] == None or index['code'] == "" or index['title'] == "":
-#                     error = "Required value missing"
-#                 else:
-#                     error = None
-#             if not error:
-#                 mydict.append({"code" : index['code'] , "title" : index['title'],"error": None})
-#             else:
-#                 mydict.append({"code" : index['code'] , "title" : index['title'],"error" : error})
+    if not admin_token == os.environ.get("admin-token"):
+        return {"status" : 500,"code" : "Admin Authorization Failed" , "result" : []}
+    # check if the body have validations key in it 
+    try:
+        validations = req_body['validations']
+    except Exception as e:
+        # throw error if the key is missing 
+        errors.append(str(e)) 
+        return {
+            "status" : 200,
+            "code": "NOTOK",
+            "count": 0,
+            "error": errors,
+            "result": [
+                {
+                "message" : "Key missing in request body"
+                }
+                ]
+            }
 
-#         for index in mydict:
 
-#             if index["error"]:
-#                 result['data'].append({
-#                                     "code" : index['code'],
-#                                     "title" : index['title'],
-#                                     "_id" : "",
-#                                     "error" : index['error']
-#                                 })
-#             else:
-#                 x = subRoles.insert_one({"code" : index['code'] , "title" : index['title']})
-#                 result['data'].append({
-#                                         "code" : index['code'],
-#                                         "title" : index['title'],
-#                                         "_id" : str(x.inserted_id),
-#                                         "error" : ""
-#                                     })
+    try: 
+        # selecting the validation based on Id
+        filter = { '_id': ObjectId(_id) }
 
-#     except Exception as e:
-
-#         print(e)
-        
-#         error = "Key missing."
+    except Exception as e:
+        errors.append(str(e))
+        print(errors)
+        return {
+            "code": "OK",
+            "count": 0,
+            "error": errors,
+            "result": []
+            }
 
     
-#     return {"status" : 200,"code" : "OK", "result" : result,"error" : error}
+    # Values to be updated.
+    newvalues = { "$set": { 'validations': validations } }
+    
+    try:   
+        validationsCollection = connectDb(os.environ.get("mongoURL"),os.environ.get("db"),os.environ.get("validationsCollection"))
+    except Exception as e:
+        errors.append(e)
+        
+    try:
+        # Using update_one() method for single updation.
+        updateResult = validationsCollection.update_one(filter, newvalues)
+    except Exception as e:
+        updateResult = {}
+        updateResult['matched_count'] = 0
+        errors.append(e)
+    
+    # return response 
+    if updateResult.matched_count > 0 :
+        return {
+            "code": "OK",
+            "count": updateResult.matched_count,
+            "error": errors,
+            "result": [
+                {
+                "message" : "Updated successfully"
+                }
+                ]
+            }
+    else:
+        return {
+            "code": "OK",
+            "count": updateResult.matched_count,
+            "error": errors,
+            "result": [
+                {
+                "message" : "Updated failed"
+                }
+                ]
+            }
+
 
 if (__name__ == '__main__'):
     app.run(debug=False)
