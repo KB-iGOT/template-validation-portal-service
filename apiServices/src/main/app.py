@@ -7,7 +7,6 @@ import hashlib
 import jwt
 from flask_cors import CORS
 import numpy as np
-import datetime
 import pymongo
 import pandas as pd
 import shutil
@@ -33,7 +32,7 @@ def myconverter(obj):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
-        elif isinstance(obj, datetime.datetime):
+        elif isinstance(obj, datetime):
             return obj.__str__()
 
 
@@ -158,7 +157,11 @@ def login():
             # secret key from the env file 
             signing_key = os.environ.get("SECRET_KEY")
             # encode the user name and expiry to create a token 
-            encoded_jwt = jwt.encode({'message': message}, signing_key, algorithm='HS256')
+            try:
+                encoded_jwt = jwt.encode({'message': message}, signing_key, algorithm='HS256')
+            except Exception as e:
+                encoded_jwt = ""
+                print(e)
 
             # return the token after successful authentication 
             return {"status" : 200,"code" : "Authenticated","errorFlag" : False,"error" : [],"response" : {
@@ -198,7 +201,7 @@ def signup():
         usersCollection = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),'userCollection')
 
         # get the current time 
-        now = datetime.datetime.now()
+        now = datetime.now()
         # query the given username
         users = usersCollection.count_documents({'userName' : userName})
         # check if the username is already present or not 
@@ -377,10 +380,7 @@ def upload():
     else:
 
         # decode the payload with signing_key to check if the user is authentic 
-        try:
-            payload = jwt.decode(auth, signing_key, algorithms=['HS256'])
-        except Exception as e:
-            print(e)
+        payload = jwt.decode(auth, signing_key, algorithms=['HS256'])
 
     if(not payload):
         return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : "True"}}
