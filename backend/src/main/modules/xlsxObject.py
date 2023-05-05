@@ -843,7 +843,6 @@ class xlsxObject:
 
 
                             if any(item in df for item in dependData["dependsOn"]["dependentColumnValue"]):
-                              print(len(row[columnName]), sheetName, columnName)
                               if row[columnName] != row[columnName] or row[columnName] == "None":
                                 if dependData["isNeeded"]:
                                   responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(dependData["dependsOn"]["dependentColumnValue"])})
@@ -942,7 +941,6 @@ class xlsxObject:
                       responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":count,"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
                       continue
                     if x != x:
-                      responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":count,"errMessage":columnData["customConditions"][customKey]["errMessage"], "suggestion":columnData["customConditions"][customKey]["suggestion"]})
                       continue
 
                     if x[:39] == "https://docs.google.com/spreadsheets/d/":
