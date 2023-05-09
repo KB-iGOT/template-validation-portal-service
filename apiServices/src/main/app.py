@@ -695,5 +695,5 @@ def updateValidations(_id):
 
 
 if (__name__ == '__main__'):
-
     app.run(host=os.environ.get("HOSTIP")  , port=os.environ.get("FLASK_RUN_PORT") , debug=True)
+    
