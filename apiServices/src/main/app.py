@@ -110,12 +110,22 @@ def addComments(templatePath, errResponse):
             else:
                 if errData["errCode"] == 300:
                     workBook.create_sheet(errData["sheetName"])
-                    spreadSheet = workBook[errData["sheetName"]]
+                    try:
+                        spreadSheet = workBook[errData["sheetName"]]
+                    except Exception as e:
+                        print(e, errData["sheetName"]," sheet is missing")
+                        continue
+                
                     spreadSheet.cell(2,1).comment=Comment("Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
                     spreadSheet.cell(2,1).fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type = "solid")
                     continue
                 else:
-                    spreadSheet = workBook[errData["sheetName"]]
+                    try:
+                        spreadSheet = workBook[errData["sheetName"]]
+                    except Exception as e:
+                        print(e, errData["sheetName"]," sheet is missing")
+                        continue
+                
                     for rowIndex in errData["rowNumber"]:
                         if spreadSheet.cell(rowIndex+2,1).comment is None: 
                             spreadSheet.cell(rowIndex+2,1).comment=Comment("Error - "+errData["errMessage"]+"\n Suggestion -"+errData["suggestion"]+"\n" ,"admin")
@@ -695,4 +705,4 @@ def updateValidations(_id):
 
 
 if (__name__ == '__main__'):
-    app.run(debug=False)
+    app.run(debug=False, port = os.environ.get("FLASK_RUN_PORT"))
