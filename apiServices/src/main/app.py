@@ -567,7 +567,7 @@ def update():
 
 # list the validation rules 
 @app.route("/template/api/v1/validations/list", methods = ['GET'])
-def list():
+def listValidations():
     client = pymongo.MongoClient(os.environ.get('mongoURL'))
     args = request.args
     validationsRes = None
