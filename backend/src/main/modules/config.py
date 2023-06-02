@@ -4,7 +4,7 @@ collectionName = "validation"
 conditionCollection = "conditions"
 
 hostUrl = "https://diksha.gov.in/"
-preprodHostUrl = "https://preprod.ntp.net.in/"
+preprodHostUrl = "https://diksha.gov.in/"
 
 errBasic = 300
 errAdv = 301

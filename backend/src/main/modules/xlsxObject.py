@@ -21,7 +21,7 @@ class xlsxObject:
     
     result = collection.find(query)
     
-    if result.count() == 1:
+    if collection.count_documents(query) == 1:
       self.success = True
       for i in result:
         self.metadata = i
@@ -622,7 +622,7 @@ class xlsxObject:
             # If a common condition doesn't have any metadata in the collection column
             # This conditions are very small so we have not stored them in the collection
 
-            if result.count() == 0:
+            if collection.count_documents(query) == 0:
               if conditionName == "incrementLevel":
                 # Used to update levels given in template id 5 and 6
                 if columnName in self.xlsxData[sheetName].keys():
