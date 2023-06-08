@@ -505,13 +505,13 @@ class xlsxObject:
         newToken = requests.post(url=hostUrl+tokenConfig["tokenApi"], headers=tokenConfig["tokenHeader"], data=tokenConfig["tokenData"])
         tokenConfig["generatedOn"] = datetime.now()
         tokenConfig["result"] = newToken.json()
-        collection.save(tokenConfig)
+        collection.update_one(query,{"$set" : tokenConfig})
       else:
         if (datetime.now() - tokenConfig["generatedOn"]).seconds > 40000 or (datetime.now() - tokenConfig["generatedOn"]).days > 0:
           newToken = requests.post(url=hostUrl+tokenConfig["tokenApi"], headers=tokenConfig["tokenHeader"], data=tokenConfig["tokenData"])
           tokenConfig["generatedOn"] = datetime.now()
           tokenConfig["result"] = newToken.json()
-          collection.save(tokenConfig)
+          collection.update_one(query,{"$set" : tokenConfig})
         else:
           newToken = Response()
           newToken._content = json.dumps(tokenConfig["result"]).encode('utf-8')
