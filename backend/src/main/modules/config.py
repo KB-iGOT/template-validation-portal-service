@@ -3,8 +3,8 @@ databaseName = "templateValidation"
 collectionName = "validation"
 conditionCollection = "conditions"
 
-hostUrl = "https://diksha.gov.in/"
-preprodHostUrl = "https://diksha.gov.in/"
+hostUrl = "https://staging.sunbirded.org/"
+preprodHostUrl = "https://staging.sunbirded.org/"
 
 errBasic = 300
 errAdv = 301
