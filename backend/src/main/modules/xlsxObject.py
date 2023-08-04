@@ -214,7 +214,6 @@ class xlsxObject:
         conditionData["stateCheck"]["body"]["request"]["filters"]["name"] = stateName
       
         df = requests.post(url=preprodHostUrl+conditionData["stateCheck"]["api"],headers=conditionData["stateCheck"]["headers"],json=conditionData["stateCheck"]["body"])
-        
         if df.json()["result"]["count"] == 0:
           responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":1,"errMessage":conditionData["stateCheck"]["errMessage"].format(stateName), "suggestion":conditionData["stateCheck"]["suggestion"]})
         else:
@@ -228,8 +227,10 @@ class xlsxObject:
     # We are checking that given district is valid or not 
 
     if columnName in self.xlsxData[sheetName].columns:  
-        
-      districtList = [item.strip() for item in self.xlsxData[sheetName][columnName].iloc[0].split(",")]
+      try:  
+        districtList = [item.strip() for item in self.xlsxData[sheetName][columnName].iloc[0].split(",")]
+      except AttributeError:
+        districtList = []
       for districtName in districtList:
         conditionData["districtCheck"]["body"]["request"]["filters"]["name"] = districtName
       
@@ -489,7 +490,6 @@ class xlsxObject:
         continue
   
     return responseData
-  
   
   def basicCondition(self):
     responseData = {"data":[]}
@@ -770,7 +770,9 @@ class xlsxObject:
                         for subRoleConfig in result:
                           for stateCode in self.stateCodeList:
                             subRoleConfig["subRoleCheck"]["body"]["request"]["subType"] = stateCode
+                            
                             subRoleData = requests.post(url=hostUrl+subRoleConfig["subRoleCheck"]["api"], headers=subRoleConfig["subRoleCheck"]["headers"], json=subRoleConfig["subRoleCheck"]["body"])
+                            
                             for z in subRoleData.json()["result"]["form"]["data"]["fields"][1]["children"]["administrator"][2]["templateOptions"]["options"]:
                               allowedSubRole.append(z["label"])
                               allowedSubRole.append(z["value"])
@@ -791,7 +793,7 @@ class xlsxObject:
 
                     
                     elif dependData["type"] == "subset":
-                      # This function will check whether one column is a subset of another or not
+                      # This function will check whether one column is a subset of another or not                                                                         
 
                       df = (self.xlsxData[dependData["dependsOn"]["dependentTabName"]][dependData["dependsOn"]["dependentColumnName"]].str.split(",")).apply(pd.Series).stack().unique().tolist()
                       df = [item.strip() for item in df]
@@ -799,11 +801,15 @@ class xlsxObject:
                       for idx, row in self.xlsxData[sheetName].iterrows():
                         if idx > 1 and not multipleRow:
                           break
-                        dfTest = row[columnName].split(",")
-                        if not all(x in df for x in dfTest):
-                          responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(df)})
-
-
+                        if row[columnName]:
+                          if not type(row[columnName]) is str:
+                            dfTest = [None]
+                          else:
+                            dfTest = row[columnName].split(",")
+                        
+                        for x in dfTest:
+                          if not x in df:
+                            responseData["data"].append({"errCode":errAdv, "sheetName":sheetName,"columnName":columnName,"rowNumber":idx,"errMessage":dependData["errMessage"], "suggestion":dependData["suggestion"].format(df)})
                                         
                     elif dependData["type"] == "value":
                       try:
