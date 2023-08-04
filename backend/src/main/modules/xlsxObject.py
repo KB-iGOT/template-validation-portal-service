@@ -764,7 +764,6 @@ class xlsxObject:
                         # Then it will validate the subroles 
 
                         allowedSubRole = []
-                        print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-")
                         collection = self.validationDB[conditionCollection]
                         query = {"name": "subRoleCheck"}
                         result = collection.find(query)
@@ -774,9 +773,6 @@ class xlsxObject:
                             
                             subRoleData = requests.post(url=hostUrl+subRoleConfig["subRoleCheck"]["api"], headers=subRoleConfig["subRoleCheck"]["headers"], json=subRoleConfig["subRoleCheck"]["body"])
                             
-                            print("========>")
-                            print(subRoleConfig)
-                            print(subRoleData.text)
                             for z in subRoleData.json()["result"]["form"]["data"]["fields"][1]["children"]["administrator"][2]["templateOptions"]["options"]:
                               allowedSubRole.append(z["label"])
                               allowedSubRole.append(z["value"])
