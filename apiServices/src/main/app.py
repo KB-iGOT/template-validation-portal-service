@@ -58,7 +58,7 @@ def connectDb(url,db,collection):
     db = client[db]
     collectionData = db[collection]
     return collectionData
-
+# below function is used to add comments in the output exel file
 def addComments(templatePath, errResponse):
     xlsxData = pd.read_excel(templatePath, sheet_name=None)
     errPath = templatePath.split(".")[0]+"_errFile"+".xlsx"
