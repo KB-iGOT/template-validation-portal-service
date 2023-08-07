@@ -232,7 +232,7 @@ def signup():
 def sample():
     errors = []
 
-    # connect to db 
+    # connection to database
     try:       
         sampleTemplate = connectDb(os.environ.get("mongoURL"),os.environ.get("db"),os.environ.get("sampleTemplatesCollection"))
     except Exception as e:
