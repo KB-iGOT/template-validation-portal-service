@@ -1,5 +1,5 @@
 #write your code
-from flask import Flask, request , send_from_directory
+from flask import Flask, request , send_from_directory,jsonify
 import os,time,sys
 from dotenv import load_dotenv
 import json 
@@ -20,10 +20,11 @@ from bson.objectid import ObjectId
 from datetime import datetime
 
 
+
+
 sys.path.append('../../..')
 sys.path.append('../../../backend/src/main/modules/')
 from backend.src.main.modules.xlsxObject import xlsxObject
-
 
 def myconverter(obj):
         if isinstance(obj, np.integer):
@@ -232,7 +233,7 @@ def signup():
 def sample():
     errors = []
 
-    # connection to database
+    # connect to db 
     try:       
         sampleTemplate = connectDb(os.environ.get("mongoURL"),os.environ.get("db"),os.environ.get("sampleTemplatesCollection"))
     except Exception as e:
@@ -704,6 +705,118 @@ def updateValidations(_id):
             }
 
 
+# list of condition rules
+@app.route("/template/api/v1/conditions/list", methods = ['GET'])
+def listConditions():
+    client = pymongo.MongoClient(os.environ.get('mongoURL'))
+    args = request.args
+    validationsRes = None
+    # Token validation
+    admin_token = request.headers.get("admin-token")
+
+    if(not admin_token):
+        return {"status" : 500,"code" : "Admin Authorization key missing" , "result" : []}
+    
+    if not admin_token == os.environ.get("admin-token"):
+        return {"status" : 500,"code" : "Admin Authorization Failed" , "result" : []}
+    
+    # fetching the keys from arguments 
+    argKeys = [key for key in args.keys()]
+    query = {}
+    errors = []
+    # preparing the query to find() from the keys passed in arguments 
+    if "id" in argKeys:
+        query.update({"id": args["id"]})
+    if "name" in argKeys:
+        query.update({"name": args["name"]})
+    
+    
+    # connecting with DB and conditions collection 
+    try:       
+        conditionsCollection = connectDb(os.environ.get("mongoURL"),os.environ.get("db"),os.environ.get("conditionsCollection"))
+    except Exception as e:
+        errors.append(e)
+
+    # running the find query 
+    try:  
+        conditionsRes = conditionsCollection.find(query)
+    except Exception as e:
+        print(e)
+    # get count of result 
+    try:
+        conditionsCount = conditionsCollection.count_documents(query)
+    except Exception as e:
+        print(e)
+    result = []
+
+    # preare result to display 
+    for index in conditionsRes:
+        index["_id"] = str(index["_id"])
+        result.append(index)
+
+    return {"status" : 200,"code" : "OK","count" : conditionsCount, "result" : json.loads(json_util.dumps(result)),"error" : errors}
+
+
+
+@app.route("/template/api/v1/conditions/update/<_id>", methods=['POST'])
+def update_conditions(_id):
+    try:
+        errors = []
+        update_fields = request.get_json()
+
+        admin_token = request.headers.get("admin-token")
+
+        if not admin_token:
+            return jsonify({"status": 500, "code": "Admin Authorization key missing", "result": []})
+
+        if not admin_token == os.environ.get("admin-token"):
+            return jsonify({"status": 500, "code": "Admin Authorization Failed", "result": []})
+
+        try:
+            filter = {'_id': ObjectId(_id)}
+        except Exception as e:
+            errors.append(str(e))
+            return jsonify({"code": "OK", "count": 0, "error": errors, "result": []})
+
+        if not update_fields:
+            return jsonify({"code": "OK", "count": 0, "error": errors, "result": [{"message": "No fields to update"}]})
+
+        # Defining the  fields that should not be updated
+        restricted_fields = ["_id", "name"]
+
+        # Check if any restricted field is being updated
+        for restricted_field in restricted_fields:
+            if restricted_field in update_fields:
+                errors.append(f"Cannot update restricted field '{restricted_field}'")
+                return jsonify({"code": "NOTOK", "count": 0, "error": errors, "result": [{"message": "You are not allowed to update this field "}]})
+
+        update_query = {}
+        for key, value in update_fields.items():
+            update_query["$set"] = {key: value}
+
+        try:
+            conditionscollection = connectDb(os.environ.get("mongoURL"), os.environ.get("db"),
+                                               os.environ.get("conditionsCollection"))
+            
+            
+            update_result = None
+            try:
+                update_result = conditionscollection.update_one(filter, update_query)
+            except Exception as e:
+                errors.append(str(e))
+            
+            if update_result and update_result.modified_count > 0:
+                return jsonify({"code": "OK", "count": update_result.modified_count, "error": errors, "result": [{"message": "Updated successfully"}]})
+            else:
+                return jsonify({"code": "NOTOK", "count": 0, "error": errors, "result": [{"message": "No documents were updated"}]})
+        except Exception as e:
+            errors.append(str(e))
+            return jsonify({"code": "NOTOK", "count": 0, "error": errors, "result": [{"message": "Error during update"}]})
+
+    except Exception as e:
+        # Handle unexpected exceptions and return a generic error message
+        return jsonify({"status": 500, "code": "Internal Server Error", "result": [{"message": "An error occurred"}]})
+        
 if (__name__ == '__main__'):
     app.run(host=os.environ.get("HOSTIP")  , port=os.environ.get("FLASK_RUN_PORT") , debug=True)
     
