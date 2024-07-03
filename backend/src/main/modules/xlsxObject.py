@@ -289,6 +289,7 @@ class xlsxObject:
     self.xlsxData[sheetName]["isEmail"] = self.xlsxData[sheetName][columnName].apply(lambda x: re.fullmatch(self.emailRegex, x))
     if columnName in self.xlsxData[sheetName].columns:  
       conditionData["ccRoleCheck"]["headers"]["X-authenticated-user-token"] = newToken.json()["access_token"]
+      # print(conditionData["ccRoleCheck"]["headers"]["X-authenticated-user-token"])
       
       for index, row in self.xlsxData[sheetName].iterrows():
         if index > 1 and not multipleRow:
@@ -552,7 +553,7 @@ class xlsxObject:
                 try:
                   responseData = self.specialCharacterName(conditionData, sheetName, columnName,responseData)
                 except Exception as e:
-                  print(e, sheetName, columnName,"specialCharacterName")
+                  # print(e, sheetName, columnName,"specialCharacterName")
                   continue
               
               elif conditionData["name"] == "projectsSpecialCharacter":
