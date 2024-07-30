@@ -3,8 +3,8 @@ databaseName = "templateValidation"
 collectionName = "validation"
 conditionCollection = "conditions"
 
-hostUrl = "https://portal.karmayogiqa.nic.in/"
-preprodHostUrl = "https://portal.karmayogiqa.nic.in/"
+hostUrl = ""
+preprodHostUrl = ""
 
 errBasic = 300
 errAdv = 301

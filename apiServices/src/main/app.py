@@ -27,7 +27,7 @@ import subprocess
 sys.path.append('../../..')
 sys.path.append('../../../backend/src/main/modules/')
 from backend.src.main.modules.xlsxObject import xlsxObject
-from backend.src.main.modules.survey import surveyCreate
+from backend.src.main.modules.survey import SurveyCreate
 from backend.src.main.modules.helper import Helpers
 # from backend.src.main.modules.commom_config import config.ini
 # from backend.src.main.modules import main
@@ -66,6 +66,7 @@ def connectDb(url,db,collection):
     client = pymongo.MongoClient(url)
     db = client[db]
     collectionData = db[collection]
+    print("collectionData",collectionData)
     return collectionData
 
 def addComments(templatePath, errResponse):
@@ -832,26 +833,25 @@ def update_conditions(_id):
 
 @app.route('/template/api/v1/survey/getSolutions', methods=['POST'])
 def fetchSurveySolutions():
-    survey = surveyCreate()
+    resurceType = request.get_json()
+
+    survey = SurveyCreate()
     access_token = survey.generate_access_token()
-    csv_path=survey.fetch_solution_id(access_token)
-    # print(accesstoken)
-    if csv_path:
-        return jsonify({"status": 200, "code": "Success","csvPath":csv_path})
+    fetchedSolutionList=survey.fetch_solution_id(access_token,resurceType['resourceType'])
+
+    if fetchedSolutionList:
+        return jsonify({"status": 200, "code": "Success","SolutionList":fetchedSolutionList})
     
     else:
-        return jsonify({"status": 500, "code": "NOTOK","csvPath":"Could not get csv path"})
-
+        return jsonify({"status": 400, "code": "NOTOK","SolutionList":"Error in getting the list of solutions"})
 
 
 @app.route('/template/api/v1/survey/create', methods=['POST'])
 def create():
     req = request.get_json()
     helperInstance = Helpers
-   
-    print("=-=-=-=-=-=-=-=> ",req['file'])
     resourceFile=helperInstance.loadSurveyFile(req['file'])
-    print(resourceFile,"resourceFileresourceFile")
+
     if resourceFile:
         return jsonify({"status": 200, "code": "Success", "result": [{"solutionId":resourceFile[0],"successSheet":resourceFile[1],"downloadbleUrl":resourceFile[2]}]})
     else :

@@ -83,48 +83,34 @@ class Helpers:
 
         # program creation 
         responsePgmCreate = requests.request("POST", programCreationurl, headers=headers, data=(payload))
-        print(responsePgmCreate.text)
-
         fileheader = [pName, ('Program Sheet Validation'), ('Passed')]
         if responsePgmCreate.status_code == 200:
             responsePgmCreateResp = responsePgmCreate.json()
             programIdForSuccess = responsePgmCreateResp['result']["_id"]
         else:
-            # terminate execution
-            print("Program creation API failed. Please check logs.")
-
-# Th    is function checks for the sequince
-
-    
+            return None
 
     def createFileStructForProgram(programFile):
-        print("programFile:-------------",programFile)
         if not os.path.isdir('resourceFile'):
             os.mkdir('resourceFile')
         if "/" in str(programFile):
             fileNameSplit = str(programFile).split('/')[-1:]
-            print("newfileNameSplit ;",fileNameSplit)
         else :
 
             fileNameSplit = os.path.basename(programFile)
-        print("updatedfileNameSplit : ",fileNameSplit)
 
         if isinstance(fileNameSplit, list):
             fileNameSplit = fileNameSplit[0]
         # fileNameSplit = str(programFile)
         if fileNameSplit.endswith(".xlsx"):
-            print("latest fileNameSplit",fileNameSplit)
             ts = str(time.time()).replace(".", "_")
             
             folderName = fileNameSplit.replace(".xlsx", "-" + str(ts))
-            print("folderName :",folderName)
             os.mkdir('resourceFile/' + str(folderName))
             path = os.path.join('resourceFile', str(folderName))
-            print("done",path)
         else:
-            print("something")
+            return None
         returnPathStr = os.path.join('resourceFile', str(folderName))
-        print("returnPathStr",returnPathStr)
 
         return returnPathStr
 
@@ -146,7 +132,7 @@ class Helpers:
             path = os.path.join(path, str('apiHitLogs'))
             os.mkdir(path)
         else:
-            print("File Error.offff")
+            return None
         returnPathStr = os.path.join(MainFilePath + '/SolutionFiles', str(folderName))
 
         if not os.path.isdir(returnPathStr + "/user_input_file"):
@@ -164,12 +150,10 @@ class Helpers:
     
         responseKeyClockUser = requests.post(url=host + (keyclockapiurl), headers=headerKeyClockUser,
                                          data=(keyclockapibody))
-        print(responseKeyClockUser)
-    
         if responseKeyClockUser.status_code == 200:
             responseKeyClockUser = responseKeyClockUser.json()
             accessTokenUser = responseKeyClockUser['access_token']
-            print("--->Access Token Generated!")
+
         return accessTokenUser
     
     def getProgramInfo(accessTokenUser, solutionName_for_folder_path, solutionNameInp):
@@ -184,7 +168,6 @@ class Helpers:
         responseProgramSearch = requests.post(url=programUrl, headers=headersProgramSearch)
        
         if responseProgramSearch.status_code == 200:
-            print('--->Program fetch API Success')
             responseProgramSearch = responseProgramSearch.json()
             countOfPrograms = len(responseProgramSearch['result']['data'])
             if countOfPrograms == 0:
@@ -214,12 +197,9 @@ class Helpers:
                             isProgramnamePresent = True
 
         else:
-            print("Program search API failed...")
-            print(responseProgramSearch)
+            return None
 
         return True
-
-
     def checkEmailValidation(email):
         if (re.search(regex, email)):
             return True
@@ -239,10 +219,7 @@ class Helpers:
 
         responseUserSearch = requests.request("POST", url, headers=headers, data=body)
         response_json = responseUserSearch.json()
-        # print(responseUserSearch.text)
-        print(json.dumps(response_json, indent=4))
-        # sys.exit()
-        # print(responseUserSearch)
+
         if responseUserSearch.status_code == 200:
             responseUserSearch = responseUserSearch.json()
             if responseUserSearch['result']['response']['content']:
@@ -256,11 +233,10 @@ class Helpers:
                         roledetails = index['roles']
                         rootOrgName = index['orgName']
                         # OrgName.append(index['orgName'])
-                print(roledetails)
             else:
-                print("-->Given username/email is not present in KB platform<--.")
+                return("-->Given username/email is not present in KB platform<--.")
         else:
-            print(responseUserSearch.text)
+            return(responseUserSearch.text)
 
         return [userKeycloak, userName, firstName,roledetails,rootOrgName,rootOrgId]
     
@@ -271,7 +247,6 @@ class Helpers:
         sheetNames = wbPgm.sheet_names()
         for sheetEnv in sheetNames:
             if sheetEnv.strip().lower() == 'details':
-                print("--->Checking resource details sheet...")
                 detailsEnvSheet = wbPgm.sheet_by_name(sheetEnv)
                 keysEnv = [detailsEnvSheet.cell(1, col_index_env).value for col_index_env in
                             range(detailsEnvSheet.ncols)]
@@ -341,9 +316,9 @@ class Helpers:
                     orgId = responseOrgSearch['result']['response']['content'][0]['id']
                     orgIds.append(orgId)
                 else:
-                    print("Email is not present in KB")
+                    return("Email is not present in KB")
             else:
-               print(responseOrgSearch.text)
+               return(responseOrgSearch.text)
                 
         return orgIds
 
@@ -360,15 +335,11 @@ class Helpers:
         responseUpdateSolutionApi = requests.post(url=solutionUpdateApi, headers=headerUpdateSolutionApi,data=json.dumps(bodySolutionUpdate))
         
         if responseUpdateSolutionApi.status_code == 200:
-            print("Solution Update Success.")
             return True
         else:
-            print("Solution Update Failed.")
             return False
 
     def createSurveySolution(parentFolder, wbSurvey, accessToken):
-        # print(accessToken)
-        print(wbSurvey,"wbSurveywbSurvey")
     
         sheetNames1 = wbSurvey.sheet_names()
         for sheetEnv in sheetNames1:
@@ -382,7 +353,6 @@ class Helpers:
                     dictDetailsEnv = {keysEnv[col_index_env]: detailsEnvSheet.cell(row_index_env, col_index_env).value
                                   for
                                   col_index_env in range(detailsEnvSheet.ncols)}
-                    # print(dictDetailsEnv,"dictDetailsEnv")
                     surveySolutionCreationReqBody['name'] = dictDetailsEnv['solution_name'].encode('utf-8').decode('utf-8')
                     surveySolutionCreationReqBody["description"] = "survey Solution"
                     surveySolutionExternalId = str(uuid.uuid1())
@@ -416,24 +386,20 @@ class Helpers:
                             surveySolutionCreationReqBody["startDate"] = ""
                         if dictDetailsEnv["end_date"]:
                             if type(dictDetailsEnv["end_date"]) == str:
-                                print("enter 1")
 
                                 endDateArr = None
                                 endDateArr = (dictDetailsEnv["end_date"]).split("-")
                                 surveySolutionCreationReqBody["endDate"] = endDateArr[2] + "-" + endDateArr[1] + "-" + \
                                                                        endDateArr[0] + " 23:59:59"
                             elif type(dictDetailsEnv["end_date"]) == float:
-                                print("enter 2")
                                 surveySolutionCreationReqBody["endDate"] = (
                                     xlrd.xldate.xldate_as_datetime(dictDetailsEnv["end_date"],
                                                                wbSurvey.datemode)).strftime("%Y/%m/%d")
                             else:
-                                print("enter 3")
                                 surveySolutionCreationReqBody["endDate"] = ""
                             enDt = surveySolutionCreationReqBody["endDate"]
                         
                             urlCreateSolutionApi =internal_kong_ip_survey+ surveysolutioncreationapiurl
-                            print(urlCreateSolutionApi)
                             headerCreateSolutionApi = {
                             'Content-Type': 'application/json',
                             'Authorization': authorization,
@@ -442,18 +408,14 @@ class Helpers:
                             'appName': appname
                         }
                             # print(surveySolutionCreationReqBody)
-                            print(headerCreateSolutionApi)
                             # sys.exit()
                             responseCreateSolutionApi = requests.post(url=urlCreateSolutionApi,
                                                                   headers=headerCreateSolutionApi,
                                                                   data=json.dumps(surveySolutionCreationReqBody))
-                            print(responseCreateSolutionApi.text)
-                            responseInText = responseCreateSolutionApi.text
                         
                             if responseCreateSolutionApi.status_code == 200:
                                 responseCreateSolutionApi = responseCreateSolutionApi.json()
                                 urlSearchSolution = internal_kong_ip_core + fetchsolutiondetails + "survey&page=1&limit=10&search=" + str(surveySolutionExternalId)
-                                print(urlSearchSolution)
                                 responseSearchSolution = requests.request("POST", urlSearchSolution,
                                                                       headers=headerCreateSolutionApi)
                             
@@ -462,8 +424,7 @@ class Helpers:
                                     surveySolutionExternalId = None
                                     surveySolutionExternalId = responseSearchSolutionApi['result']['data'][0]['externalId']
                                 else:
-                                    print("Solution fetch API failed")
-                                    print("URL : " + urlSearchSolution)
+                                    return("URL : " + urlSearchSolution)
 
                                 solutionId = None
                                 solutionId = responseCreateSolutionApi["result"]["solutionId"]
@@ -472,7 +433,7 @@ class Helpers:
                                 return [solutionId, surveySolutionExternalId]
                             
                             else:
-                                print("somethinghere i found")
+                                return("something went wrong here ")
 
 
     def uploadSurveyQuestions(parentFolder, wbSurvey, addSolutionFile, accessToken, surveySolutionExternalId, surveyParentSolutionId,millisecond):
@@ -491,8 +452,6 @@ class Helpers:
         dataSort.sort(key=lambda x: int(x[0]))
         openWorkBookSort1 = xl_copy(wbSurvey)
         sheet1 = openWorkBookSort1.add_sheet('questions_sequence_sorted')
-        print(sheet1,"reacher till here")
-
 
         for idx, label in enumerate(labels):
             sheet1.write(0, idx, label)
@@ -747,7 +706,6 @@ class Helpers:
                 responseQuestionUploadApi = requests.post(url=urlQuestionsUploadApi,
                                                           headers=headerQuestionUploadApi, files=filesQuestion)
                 if responseQuestionUploadApi.status_code == 200:
-                    print('Question upload Success')
 
                     with open(parentFolder + '/questionUpload/uploadInternalIdsSheet.csv', 'w+',encoding='utf-8') as questionRes:
                         questionRes.write(responseQuestionUploadApi.text)
@@ -760,7 +718,6 @@ class Helpers:
                     responseImportSoluTemplateApi = requests.get(url=urlImportSoluTemplate,
                                                                  headers=headerImportSoluTemplateApi)
                     if responseImportSoluTemplateApi.status_code == 200:
-                        print('Creating Child Success')
                         responseImportSoluTemplateApi = responseImportSoluTemplateApi.json()
                         solutionIdSuc = responseImportSoluTemplateApi["result"]["solutionId"]
                         childsolutionid = solutionIdSuc
@@ -780,10 +737,7 @@ class Helpers:
                             surveyLink = responseImportSoluTemplateApi["result"]["link"]
                             solutionIdSuc = responseImportSoluTemplateApi["result"]["solutionId"]
                             solutionExtIdSuc = responseImportSoluTemplateApi["result"]["solutionExternalId"]
-                            print("Survey Child Id : " + str(solutionExtIdSuc))
-                            print("Survey Child Link : " + str(surveyLink))
-                            print("Survey Solution Id : " + str(solutionIdSuc))
-                            print('Survey Successfully Added')
+        
                             return str(solutionIdSuc)
                         else:
                             print('Program Mapping Failed')
@@ -847,14 +801,11 @@ class Helpers:
 
         # Save the workbook
         wb.save(successSheetName)
-        print("Solution success sheet is created")
         return successSheetName
 
     def uploadSuccessSheetToBucket(solutionId,successSheetName,accessToken):
-        print("successSheetName----------",successSheetName)
         persignedUrl = public_url_for_core_service + getpresignedurl
         successSheetExcel = successSheetName.split('/')[-1]
-        print("successSheetExcel",successSheetExcel)
         presignedUrlBody = {
             "request": {
                 solutionId: {
@@ -878,22 +829,13 @@ class Helpers:
                 downloadedurl = fileUploadUrl.split('?file=')[1]
             else:
                 downloadedurl = None
-            print(downloadSuccessSheet+downloadedurl,"click here to download")
-
-            print(fileUploadUrl,"fileUploadUrlfileUploadUrl")
-            print(presignedResponse['result'][solutionId]['files'][0],"till here reacher")
-            print("fileUploadUrl-------",fileUploadUrl)
             headers = {
                 'Authorization': authorization,
                 'X-authenticated-user-token': accessToken,
-
             }
-
             files={
                 'file': open(successSheetName, 'rb')
             }
-            print("files---------",files)
-
             response = requests.post(url=fileUploadUrl, headers=headers, files=files)
             if response.status_code == 200:
                 print("File Uploaded successfully")
@@ -952,7 +894,6 @@ class Helpers:
 
                     elif os.path.isdir(returnPathStr):
                         shutil.rmtree(returnPathStr)
-                        print(f"Directory {returnPathStr} deleted successfully.")
                 else:
                     print(f"File {returnPathStr} not found.")
             except Exception as e:
@@ -971,7 +912,6 @@ class Helpers:
         accessToken = Helpers.generateAccessToken(parentFolder)
         wbObservation = xlrd.open_workbook(addSolutionFile, on_demand=True)
         Helpers.SolutionFileCheck(addSolutionFile, accessToken, parentFolder, MainFilePath)
-        print(wbObservation,"wbObservation")
         surveyResp = Helpers.createSurveySolution(parentFolder, wbObservation, accessToken)
         surTempExtID = surveyResp[1]
         # surveyChildId = surveyResp[0]
@@ -982,7 +922,6 @@ class Helpers:
         
         local = os.getcwd()
         sucessSheetName = Helpers.preparesolutionUploadSheet(MainFilePath,parentFolder,surveyChildId)
-        print("surveychild id",surveyChildId)
         clickheretodownload = Helpers.uploadSuccessSheetToBucket(surveyChildId,sucessSheetName,accessToken)
         Helpers.schedule_deletion(MainFilePath)
         return [surveyChildId,local+'/'+sucessSheetName,clickheretodownload]
@@ -994,17 +933,10 @@ class Helpers:
         # print(MainFilePath,"return surveyResp[0]return surveyResp[0]")
         wbPgm = xlrd.open_workbook(resourceFile, on_demand=True)
         sheetNames = wbPgm.sheet_names()
-        print(sheetNames)   
-        # Specify the local path of the Excel file
-        # local=os.getcwd()
-        # print(local,"local")
         resourceLinkOrExtPGMcopy = '/'+str(resourceFile)
-        print(resourceLinkOrExtPGMcopy,"resourceLinkOrExtPGMcopy")
         if not os.path.isdir('InputFiles'):
             os.mkdir('InputFiles')
         shutil.copy(resourceLinkOrExtPGMcopy,'InputFiles' )
-        print("--->solution input file successfully copied")
-        # sys.exit()
 
         solutionSL = Helpers.mainFunc(MainFilePath, os.path.join('InputFiles',resourceFile))
         return solutionSL
