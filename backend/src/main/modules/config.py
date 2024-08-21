@@ -10,7 +10,6 @@ host =  ""
 internal_kong_ip_core = ""
 public_url_for_core_service = ""
 internal_kong_ip_survey = ""
-keyclockapibody = ""
 authorization = ""
 authorizationforhost =  ""
 internal_access_token = ""
@@ -53,7 +52,7 @@ fetchprojectlist = "v1/library/categories/projects"
 dbfindapi_url = "v1/admin/dbFind/"                                              
 addingbasetemp = "v1/certificateBaseTemplates/createOrUpdate"   
 getpresignedurl = "v1/files/preSignedUrls?serviceUpload=true"
-downloadSuccessSheet = "https://portal.karmayogibm.nic.in/content-store/"
+downloadSuccessSheet = ""
 
 errBasic = 300
 errAdv = 301

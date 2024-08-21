@@ -834,6 +834,20 @@ def update_conditions(_id):
 @app.route('/template/api/v1/survey/getSolutions', methods=['POST'])
 def fetchSurveySolutions():
     resurceType = request.get_json()
+    # Token validation
+    auth = request.headers.get("Authorization")
+    signing_key = os.environ.get("SECRET_KEY")
+    payload = False
+    if(not auth):
+        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
+    else:
+        try:
+            payload = jwt.decode(auth, signing_key, algorithms=['HS256'])
+        except Exception as e:
+            print(e)
+
+    if(not payload):
+        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : "True"}}
 
     survey = SurveyCreate()
     access_token = survey.generate_access_token()
@@ -851,6 +865,21 @@ def fetchSurveySolutions():
 def fetchSurveySolutions_Csv():
     resurceType = request.get_json()
 
+    # Token validation
+    auth = request.headers.get("Authorization")
+    signing_key = os.environ.get("SECRET_KEY")
+    payload = False
+    if(not auth):
+        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
+    else:
+        try:
+            payload = jwt.decode(auth, signing_key, algorithms=['HS256'])
+        except Exception as e:
+            print(e)
+
+    if(not payload):
+        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : "True"}}
+
     survey = SurveyCreate()
     access_token = survey.generate_access_token()
     csvFilePath=survey.fetch_solution_id_csv(access_token,resurceType['resourceType'])
@@ -867,6 +896,20 @@ def create():
     req = request.get_json()
     helperInstance = Helpers
     resourceFile=helperInstance.loadSurveyFile(req['file'])
+    # Token validation
+    auth = request.headers.get("Authorization")
+    signing_key = os.environ.get("SECRET_KEY")
+    payload = False
+    if(not auth):
+        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
+    else:
+        try:
+            payload = jwt.decode(auth, signing_key, algorithms=['HS256'])
+        except Exception as e:
+            print(e)
+
+    if(not payload):
+        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : "True"}}
 
     if resourceFile:
         return jsonify({"status": 200, "code": "Success", "result": [{"solutionId":resourceFile[0],"successSheet":resourceFile[1],"downloadbleUrl":resourceFile[2]}]})

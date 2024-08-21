@@ -30,7 +30,8 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Color, PatternFill, Font, Border
 from openpyxl.styles import colors
 from openpyxl.cell import Cell
-from common_config import *
+from config import *
+# from common_config import *
 import threading
 
 millisecond = None
@@ -255,6 +256,7 @@ class Helpers:
                                         for
                                         col_index_env in range(detailsEnvSheet.ncols)}
                     solutionNameInp = dictDetailsEnv['solution_name'].encode('utf-8').decode('utf-8')
+                    print(solutionNameInp)
                     solutionNameForSuccess = solutionNameInp
                     global entitiesPGM
 
@@ -324,7 +326,6 @@ class Helpers:
 
     def solutionUpdate(solutionName_for_folder_path, accessToken, solutionId, bodySolutionUpdate):
         solutionUpdateApi = internal_kong_ip_core + solutionupdateapi + str(solutionId)
-        print("solutionUpdateApi:",solutionUpdateApi)
         headerUpdateSolutionApi = {
             'Content-Type': 'application/json',
             'Authorization': authorization,
@@ -730,7 +731,7 @@ class Helpers:
                         }
                         responseSurveyProgramMappingApi = requests.get(url=urlSurveyProgramMapping,headers=headeSurveyProgramMappingApi)
                         if responseSurveyProgramMappingApi.status_code == 200:
-                            print('Program Mapping Success')
+                            # print('Program Mapping Success')
                             surveyLink = None
                             solutionIdSuc = None
                             surveyExternalIdSuc = None
@@ -838,7 +839,7 @@ class Helpers:
             }
             response = requests.post(url=fileUploadUrl, headers=headers, files=files)
             if response.status_code == 200:
-                print("File Uploaded successfully")
+                # print("File Uploaded successfully")
                 solutionFileData = programupdateData[solutionId]
                 programUpdateDetails = {
                     "solutionId" : solutionId,
@@ -881,7 +882,7 @@ class Helpers:
         responseForProgramUpdate = requests.request("POST", programUpdateUrl, headers=headerPreSignedUrl,
                                                     data=json.dumps(body))
         if responseForProgramUpdate.status_code == 200:
-            print("program Updated successfully")
+            return("program Updated successfully")
 
     def schedule_deletion(returnPathStr):
         def delete_file():
