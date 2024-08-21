@@ -66,7 +66,7 @@ def connectDb(url,db,collection):
     client = pymongo.MongoClient(url)
     db = client[db]
     collectionData = db[collection]
-    print("collectionData",collectionData)
+    # print("collectionData",collectionData)
     return collectionData
 
 def addComments(templatePath, errResponse):
@@ -841,6 +841,22 @@ def fetchSurveySolutions():
 
     if fetchedSolutionList:
         return jsonify({"status": 200, "code": "Success","SolutionList":fetchedSolutionList})
+    
+    else:
+        return jsonify({"status": 400, "code": "NOTOK","SolutionList":"Error in getting the list of solutions"})
+
+
+
+@app.route('/template/api/v1/survey/downloadSolutions', methods=['POST'])
+def fetchSurveySolutions_Csv():
+    resurceType = request.get_json()
+
+    survey = SurveyCreate()
+    access_token = survey.generate_access_token()
+    csvFilePath=survey.fetch_solution_id_csv(access_token,resurceType['resourceType'])
+
+    if csvFilePath:
+        return jsonify({"status": 200, "code": "Success","csvFilePath":csvFilePath})
     
     else:
         return jsonify({"status": 400, "code": "NOTOK","SolutionList":"Error in getting the list of solutions"})
