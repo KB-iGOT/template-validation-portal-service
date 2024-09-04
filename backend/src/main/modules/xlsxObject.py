@@ -8,7 +8,7 @@ import os
 import json
 from unidecode import unidecode
 from requests.models import Response
-from config import *
+from backend.src.main.modules.config import *
 
 class xlsxObject:
   def __init__(self, id, xlsxPath):
