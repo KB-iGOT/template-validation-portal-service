@@ -2,15 +2,15 @@ version: '3.9'
 services:
   template-validation-portal-service:
     build:
-      context: './template-validation-portal-service/'
+      context: '.'  # Make sure this points to the correct directory where Dockerfile is located
       dockerfile: Dockerfile
     ports:
       - '6001:5000'  # Map container port 5000 to host port 6001
-    command: bash -c "ls && source tvp/bin/activate && flask run --host=0.0.0.0 --port=5000"
+    command: bash -c "ls && source tvp/bin/activate && flask run --host=0.0.0.0 --port=6001"
     networks:
       - elevate_net
     env_file:
-      - .env
+      - ./apiServices/src/main/.env
 
 networks:
   elevate_net:

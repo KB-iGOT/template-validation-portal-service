@@ -4,7 +4,7 @@ import time
 import json
 import threading
 import requests
-from config import *
+from backend.src.main.modules.config import *
 # from common_config import *
 from datetime import datetime
 from requests import get,post
