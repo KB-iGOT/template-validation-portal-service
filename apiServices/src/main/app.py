@@ -201,15 +201,15 @@ def login():
 def signup():
     req_body = request.get_json()
     # get the 'admin-token' from the request header 
-    auth = request.headers.get('admin-token')
-    # check for the auth token 
-    if(not auth):
-        # if the auth token is missing return authorization failed 
-        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
-    else:
-        # the auth token is present in the header and check the token present in the env file 
-        if not auth == os.environ.get('admin-token'):
-            return {"status" : 500,"code" : "Not Authorized" , "result" : {"templateLinks" : ""}}
+    # auth = request.headers.get('admin-token')
+    # # check for the auth token 
+    # if(not auth):
+    #     # if the auth token is missing return authorization failed 
+    #     return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
+    # else:
+    #     # the auth token is present in the header and check the token present in the env file 
+    #     if not auth == os.environ.get('admin-token'):
+    #         return {"status" : 500,"code" : "Not Authorized" , "result" : {"templateLinks" : ""}}
 
     # if auth is checked 
     try:
