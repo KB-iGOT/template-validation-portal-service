@@ -389,22 +389,22 @@ def sampleUpdate(code):
 def upload():
 
     # get auth Token for validation
-    auth = request.headers.get('Authorization')
-    # get SECRET_KEY for validation
-    signing_key = os.environ.get("SECRET_KEY")
+    # auth = request.headers.get('Authorization')
+    # # get SECRET_KEY for validation
+    # signing_key = os.environ.get("SECRET_KEY")
 
-    payload = False
-    # check if auth token is present in the header 
-    if(not auth):
-        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
-    else:
+    # payload = False
+    # # check if auth token is present in the header 
+    # if(not auth):
+    #     return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
+    # else:
 
-        # decode the payload with signing_key to check if the user is authentic 
-        # print("=-=-=-==-=-> ",auth)
-        payload = jwt.decode(auth, signing_key, algorithms=['HS256'])
+    #     # decode the payload with signing_key to check if the user is authentic 
+    #     # print("=-=-=-==-=-> ",auth)
+    #     payload = jwt.decode(auth, signing_key, algorithms=['HS256'])
 
-    if(not payload):
-        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : "True"}}
+    # if(not payload):
+    #     return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : "True"}}
     
     # set the allowed extensions to upload 
     ALLOWED_EXTENSIONS = set(['xlsx'])
@@ -452,19 +452,19 @@ def validate():
     templateCode = req_body["request"]["templateCode"]
 
     # Token validation
-    auth = request.headers.get("Authorization")
-    signing_key = os.environ.get("SECRET_KEY")
-    payload = False
-    if(not auth):
-        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
-    else:
-        try:
-            payload = jwt.decode(auth, signing_key, algorithms=['HS256'])
-        except Exception as e:
-            print(e)
+    # auth = request.headers.get("Authorization")
+    # signing_key = os.environ.get("SECRET_KEY")
+    # payload = False
+    # if(not auth):
+    #     return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
+    # else:
+    #     try:
+    #         payload = jwt.decode(auth, signing_key, algorithms=['HS256'])
+    #     except Exception as e:
+    #         print(e)
 
-    if(not payload):
-        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : "True"}}
+    # if(not payload):
+    #     return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : "True"}}
     
 
     basicErrors = xlsxObject(templateCode, templateFolderPath)
@@ -866,19 +866,19 @@ def fetchSurveySolutions_Csv():
     resurceType = request.get_json()
 
     # Token validation
-    auth = request.headers.get("Authorization")
-    signing_key = os.environ.get("SECRET_KEY")
-    payload = False
-    if(not auth):
-        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
-    else:
-        try:
-            payload = jwt.decode(auth, signing_key, algorithms=['HS256'])
-        except Exception as e:
-            print(e)
+    # auth = request.headers.get("Authorization")
+    # signing_key = os.environ.get("SECRET_KEY")
+    # payload = False
+    # if(not auth):
+    #     return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
+    # else:
+    #     try:
+    #         payload = jwt.decode(auth, signing_key, algorithms=['HS256'])
+    #     except Exception as e:
+    #         print(e)
 
-    if(not payload):
-        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : "True"}}
+    # if(not payload):
+    #     return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : "True"}}
 
     survey = SurveyCreate()
     access_token = survey.generate_access_token()
@@ -897,19 +897,19 @@ def create():
     helperInstance = Helpers
     resourceFile=helperInstance.loadSurveyFile(req['file'])
     # Token validation
-    auth = request.headers.get("Authorization")
-    signing_key = os.environ.get("SECRET_KEY")
-    payload = False
-    if(not auth):
-        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
-    else:
-        try:
-            payload = jwt.decode(auth, signing_key, algorithms=['HS256'])
-        except Exception as e:
-            print(e)
+    # auth = request.headers.get("Authorization")
+    # signing_key = os.environ.get("SECRET_KEY")
+    # payload = False
+    # if(not auth):
+    #     return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
+    # else:
+    #     try:
+    #         payload = jwt.decode(auth, signing_key, algorithms=['HS256'])
+    #     except Exception as e:
+    #         print(e)
 
-    if(not payload):
-        return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : "True"}}
+    # if(not payload):
+    #     return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : "True"}}
 
     if resourceFile:
         return jsonify({"status": 200, "code": "Success", "result": [{"solutionId":resourceFile[0],"successSheet":resourceFile[1],"downloadbleUrl":resourceFile[2]}]})
