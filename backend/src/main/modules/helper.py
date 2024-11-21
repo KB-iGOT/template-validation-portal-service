@@ -825,14 +825,11 @@ class Helpers:
         if responseForPresignedUrl.status_code == 200:
             presignedResponse = responseForPresignedUrl.json()
             programupdateData = presignedResponse['result']
-            fileUploadUrl = presignedResponse['result'][solutionId]['files'][0]['url']
-            if '?file=' in fileUploadUrl:
-                downloadedurl = fileUploadUrl.split('?file=')[1]
-            else:
-                downloadedurl = None
+            fileUploadUrl = presignedResponse['result'][solutionDump]['files'][0]['url'][0]
+            downloadedurl = presignedResponse['result'][solutionDump]['files'][0]['getDownloadableUrl'][0]
             headers = {
-                'Authorization': authorization,
-                'X-authenticated-user-token': accessToken,
+                "Content-Type":"multipart/form-data"
+
             }
             files={
                 'file': open(successSheetName, 'rb')
