@@ -825,16 +825,15 @@ class Helpers:
         if responseForPresignedUrl.status_code == 200:
             presignedResponse = responseForPresignedUrl.json()
             programupdateData = presignedResponse['result']
-            fileUploadUrl = presignedResponse['result'][solutionDump]['files'][0]['url'][0]
-            downloadedurl = presignedResponse['result'][solutionDump]['files'][0]['getDownloadableUrl'][0]
+            fileUploadUrl = presignedResponse['result'][solutionId]['files'][0]['url'][0]
+            downloadedurl = presignedResponse['result'][solutionId]['files'][0]['getDownloadableUrl'][0]
             headers = {
                 "Content-Type":"multipart/form-data"
 
             }
-            files={
-                'file': open(successSheetName, 'rb')
-            }
-            response = requests.post(url=fileUploadUrl, headers=headers, files=files)
+            with open(successSheetName, 'rb') as file:
+                response = requests.put(url=fileUploadUrl, headers=headers, data=file)
+            
             if response.status_code == 200:
                 # print("File Uploaded successfully")
                 solutionFileData = programupdateData[solutionId]
@@ -843,7 +842,7 @@ class Helpers:
                     **solutionFileData
                 }
                 Helpers.getProgramDetailsMetaAndUpdate(programUpdateDetails,accessToken)
-        return downloadSuccessSheet+downloadedurl
+        return downloadedurl
 
 
     def getProgramDetailsMetaAndUpdate(programMetaInfo,accessToken) :
@@ -931,7 +930,7 @@ class Helpers:
         # print(MainFilePath,"return surveyResp[0]return surveyResp[0]")
         wbPgm = xlrd.open_workbook(resourceFile, on_demand=True)
         sheetNames = wbPgm.sheet_names()
-        resourceLinkOrExtPGMcopy = '/'+str(resourceFile)
+        resourceLinkOrExtPGMcopy = str(resourceFile)
         if not os.path.isdir('InputFiles'):
             os.mkdir('InputFiles')
         shutil.copy(resourceLinkOrExtPGMcopy,'InputFiles' )

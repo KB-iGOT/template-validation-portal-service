@@ -107,6 +107,7 @@ class SurveyCreate:
             )
             response.raise_for_status()
             result = response.json().get('result', [])
+            # print(result)
         except requests.RequestException as e:
             return None
         try:
@@ -147,6 +148,7 @@ class SurveyCreate:
                     'SOLUTION_ID': solution_id,'SOLUTION_NAME': solution_name,'SOLUTION_CREATED_DATE': solution_createdat,'START_DATE': startdate,'END_DATE': endate})
 
         print("Data written to CSV successfully.")
+        print(csv_file_path)
         self.schedule_deletion(csv_file_path)
         couldPathForCsv=self.uploadSuccessSheetToBucket(csv_file_path,access_token)
         return couldPathForCsv
@@ -185,10 +187,8 @@ class SurveyCreate:
                 "Content-Type":"multipart/form-data"
 
             }
-            files={
-                'file': open(csv_file_path, 'rb')
-            }
-            response = requests.put(url=fileUploadUrl, headers=headers, files=files)
+            with open(csv_file_path, 'rb') as file:
+                response = requests.put(url=fileUploadUrl, headers=headers, data=file)
             print(response.status_code)
             if response.status_code == 200:
                 print("File Uploaded successfully")
