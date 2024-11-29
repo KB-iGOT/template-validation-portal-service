@@ -51,7 +51,7 @@ fetchorgdetails = "api/org/v1/search"
 fetchprojectlist = "v1/library/categories/projects"
 dbfindapi_url = "v1/admin/dbFind/"                                              
 addingbasetemp = "v1/certificateBaseTemplates/createOrUpdate"   
-getpresignedurl = "v1/files/preSignedUrls?serviceUpload=true"
+getpresignedurl = "v1/files/preSignedUrls"
 downloadSuccessSheet = ""
 
 errBasic = 300

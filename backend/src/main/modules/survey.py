@@ -107,6 +107,7 @@ class SurveyCreate:
             )
             response.raise_for_status()
             result = response.json().get('result', [])
+            # print(result)
         except requests.RequestException as e:
             return None
         try:
@@ -147,6 +148,7 @@ class SurveyCreate:
                     'SOLUTION_ID': solution_id,'SOLUTION_NAME': solution_name,'SOLUTION_CREATED_DATE': solution_createdat,'START_DATE': startdate,'END_DATE': endate})
 
         print("Data written to CSV successfully.")
+        print(csv_file_path)
         self.schedule_deletion(csv_file_path)
         couldPathForCsv=self.uploadSuccessSheetToBucket(csv_file_path,access_token)
         return couldPathForCsv
@@ -176,27 +178,21 @@ class SurveyCreate:
         if responseForPresignedUrl.status_code == 200:
             presignedResponse = responseForPresignedUrl.json()
             programupdateData = presignedResponse['result']
-            fileUploadUrl = presignedResponse['result'][solutionDump]['files'][0]['url']
-            if '?file=' in fileUploadUrl:
-                downloadedurl = fileUploadUrl.split('?file=')[1]
-            else:
-                downloadedurl = None
-
+            # print(programupdateData)
+            fileUploadUrl = presignedResponse['result'][solutionDump]['files'][0]['url'][0]
+            downloadedurl = presignedResponse['result'][solutionDump]['files'][0]['getDownloadableUrl'][0]
+            # print(downloadedurl,"downloadedurl")
+            # print(fileUploadUrl)
             headers = {
-                'Authorization': authorization,
-                'X-authenticated-user-token': access_token,
+                "Content-Type":"multipart/form-data"
 
             }
-
-
-            files={
-                'file': open(csv_file_path, 'rb')
-            }
-
-            response = requests.post(url=fileUploadUrl, headers=headers, files=files)
+            with open(csv_file_path, 'rb') as file:
+                response = requests.put(url=fileUploadUrl, headers=headers, data=file)
+            print(response.status_code)
             if response.status_code == 200:
                 print("File Uploaded successfully")
-        return downloadSuccessSheet+downloadedurl
+        return downloadedurl
         
     def schedule_deletion(self,file_path):
         def delete_file():
