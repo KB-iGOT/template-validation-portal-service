@@ -1,6 +1,9 @@
 # Use a lightweight Python image as a base
 FROM python:3.10-slim
 
+# Create a non-root user
+RUN useradd -m appuser
+
 # Set environment variables for Flask
 ENV FLASK_APP=app.py
 ENV FLASK_RUN_HOST=0.0.0.0
@@ -8,6 +11,7 @@ ENV FLASK_RUN_PORT=5000
 
 # Set the working directory inside the container
 WORKDIR /app
+RUN chown -R appuser:appuser /app
 
 # Install virtualenv
 RUN pip install --no-cache-dir virtualenv
@@ -15,9 +19,11 @@ RUN pip install --no-cache-dir virtualenv
 # Create a virtual environment
 RUN python3 -m venv tvp
 
-# Copy the application code into the container
-COPY apiServices/src/main/ .
-COPY backend/ ./backend  
+USER appuser
+
+# Copy application code
+COPY --chown=appuser:appuser apiServices/src/main/ .
+COPY --chown=appuser:appuser backend/ ./backend  
 
 # Print the directory structure to verify correct placement
 RUN ls -R
