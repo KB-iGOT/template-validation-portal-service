@@ -19,6 +19,7 @@ from bson import json_util
 from bson.objectid import ObjectId
 from datetime import datetime
 import subprocess
+import bcrypt
 # from backend.src.main.modules.helper import *
 
 
@@ -153,90 +154,109 @@ def addComments(templatePath, errResponse):
 # Login user API 
 @app.route("/template/api/v1/authenticate", methods = ['POST'])
 def login():
-    req_body = request.get_json()
     try:
-        # get the user name from request 
-        userName = req_body['request']['email']
-        # get the password from request and hash it in md5 
-        password = hashlib.md5(req_body['request']['password'].encode('utf-8'))
+        req = request.get_json()['request']
+        userName, raw_password = req['email'], req['password']
 
-        # connect to user collection 
-        usersCollection = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),'userCollection')
-        
-        # query the username and hashed password pair is present in DB
-        users = usersCollection.count_documents({'userName' : userName , "password" : str(password.hexdigest())})
+        usersCollection = connectDb(os.environ.get('mongoURL'),
+                                    os.environ.get('db'),
+                                    'userCollection')
 
-        # check the user result 
-        if(users):
-            # Exipry and other details can be added here
-            message = {
-                'iss': '',
-                'email': userName
+        user = usersCollection.find_one({'userName': userName})
+        if not user:
+            return {"status":404,"code":"Error","errorFlag":True,
+                    "error":["Username / Password Doesn't Match"],
+                    "response":{"accessToken":""}}
+
+        stored = user.get("password")
+        ptype = user.get("passwordType", "md5")
+
+        # 🔐 bcrypt check OR md5 fallback
+        valid = (
+            bcrypt.checkpw(raw_password.encode(), stored.encode())
+            if ptype == "bcrypt"
+            else hashlib.md5(raw_password.encode()).hexdigest() == stored
+        )
+
+        # 🔁 upgrade md5 → bcrypt
+        if valid and ptype != "bcrypt":
+            usersCollection.update_one({'_id': user['_id']}, {
+                "$set": {
+                    "password": bcrypt.hashpw(raw_password.encode(), bcrypt.gensalt()).decode(),
+                    "passwordType": "bcrypt"
                 }
-            
-            # secret key from the env file 
-            signing_key = os.environ.get("SECRET_KEY")
-            # encode the user name and expiry to create a token 
-            try:
-                encoded_jwt = jwt.encode({'message': message}, signing_key, algorithm='HS256')
-            except Exception as e:
-                encoded_jwt = ""
-                print(e)
+            })
 
-            # return the token after successful authentication 
-            return {"status" : 200,"code" : "Authenticated","errorFlag" : False,"error" : [],"response" : {
-                "accessToken" : encoded_jwt
-            }}
-        else:
-            # return authentication failed error 
-            return {"status" : 404,"code" : "Error","errorFlag" : True,"error" : ["Username / Password Doesn't Match"],"response" : {
-                "accessToken" : "" }}
+        if not valid:
+            return {"status":404,"code":"Error","errorFlag":True,
+                    "error":["Username / Password Doesn't Match"],
+                    "response":{"accessToken":""}}
+
+        token = jwt.encode(
+            {'message': {'iss':'','email':userName}},
+            os.environ.get("SECRET_KEY"),
+            algorithm='HS256'
+        )
+
+        return {"status":200,"code":"Authenticated","errorFlag":False,
+                "error":[],"response":{"accessToken":token}}
+
     except Exception as e:
-        # throw the error 
-        return {"status" : 500,"code" : str(e) ,"errorFlag" : True,"error" : ["Error in reaching server"],"response" : {
-                "accessToken" : "" }}
-
+        return {"status":500,"code":str(e),"errorFlag":True,
+                "error":["Error in reaching server"],
+                "response":{"accessToken":""}}
 # sign up API
 @app.route("/template/api/v1/signup", methods = ['POST'])
 def signup():
     req_body = request.get_json()
-    # get the 'admin-token' from the request header 
+
     # auth = request.headers.get('admin-token')
-    # # check for the auth token 
     # if(not auth):
-    #     # if the auth token is missing return authorization failed 
-    #     return {"status" : 500,"code" : "Authorization Failed" , "result" : {"templateLinks" : ""}}
-    # else:
-    #     # the auth token is present in the header and check the token present in the env file 
-    #     if not auth == os.environ.get('admin-token'):
-    #         return {"status" : 500,"code" : "Not Authorized" , "result" : {"templateLinks" : ""}}
+    #     return {"status":500,"code":"Authorization Failed","result":{"templateLinks":""}}
+    # if not auth == os.environ.get('admin-token'):
+    #     return {"status":500,"code":"Not Authorized","result":{"templateLinks":""}}
 
-    # if auth is checked 
     try:
-        # get the username from request body 
         userName = req_body['request']['email']
-        # get the password from request body and hash it
-        password = hashlib.md5(req_body['request']['password'].encode('utf-8'))
-        # connect to users collection in mongo DB
-        usersCollection = connectDb(os.environ.get('mongoURL'),os.environ.get('db'),'userCollection')
+        raw_password = req_body['request']['password']
 
-        # get the current time 
+        usersCollection = connectDb(os.environ.get('mongoURL'),
+                                    os.environ.get('db'),
+                                    'userCollection')
+
         now = datetime.now()
-        # query the given username
-        users = usersCollection.count_documents({'userName' : userName})
-        # check if the username is already present or not 
-        if(users <= 0):
-            # not present create the user in DB 
-            users = usersCollection.insert_one({'userName' : userName , "password" : str(password.hexdigest()),"status" : "active","role" : "admin","createdAt" : str(now),"updatedAt" : str(now),"createdBy" : "admin"})
-            # return success message 
-            return {"status" : 200,"code" : "Authenticated","errorFlag" : False,"error" : [],"response" : "User created Successfully."}
-        else:
-            # return user already exists 
-            return {"status" : 404,"code" : "Error","errorFlag" : True,"error" : ["UserName already exisiting."],"response" : {"accessToken" : "" }}
-    except Exception as e:
-        # return error 
-        return {"status" : 500,"code" : str(e) ,"errorFlag" : True,"error" : ["Error in reaching server"],"response" : {"accessToken" : "" }}
+        users = usersCollection.count_documents({'userName': userName})
 
+        if(users <= 0):
+            # 🔐 bcrypt instead of MD5
+            hashed_password = bcrypt.hashpw(
+                raw_password.encode('utf-8'),
+                bcrypt.gensalt()
+            ).decode('utf-8')
+
+            usersCollection.insert_one({
+                'userName': userName,
+                "password": hashed_password,
+                "passwordType": "bcrypt",   # 👈 small addition
+                "status": "active",
+                "role": "admin",
+                "createdAt": str(now),
+                "updatedAt": str(now),
+                "createdBy": "admin"
+            })
+
+            return {"status":200,"code":"Authenticated","errorFlag":False,
+                    "error":[],"response":"User created Successfully."}
+
+        else:
+            return {"status":404,"code":"Error","errorFlag":True,
+                    "error":["UserName already exisiting."],
+                    "response":{"accessToken":""}}
+
+    except Exception as e:
+        return {"status":500,"code":str(e),"errorFlag":True,
+                "error":["Error in reaching server"],
+                "response":{"accessToken":""}}
 # sample template downloader api
 @app.route("/template/api/v1/download/sampleTemplate", methods = ['GET'])
 def sample():
