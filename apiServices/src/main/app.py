@@ -3,7 +3,7 @@ from flask import Flask, request , send_from_directory,jsonify
 import os,time,sys
 from dotenv import load_dotenv
 import json 
-import hashlib 
+
 import jwt
 from flask_cors import CORS
 import numpy as np
@@ -17,7 +17,7 @@ from openpyxl.styles import PatternFill
 from bson import json_util
 # importing ObjectId from bson library
 from bson.objectid import ObjectId
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import subprocess
 import bcrypt
 # from backend.src.main.modules.helper import *
@@ -171,21 +171,13 @@ def login():
         stored = user.get("password")
         ptype = user.get("passwordType", "md5")
 
-        # 🔐 bcrypt check OR md5 fallback
-        valid = (
-            bcrypt.checkpw(raw_password.encode(), stored.encode())
-            if ptype == "bcrypt"
-            else hashlib.md5(raw_password.encode()).hexdigest() == stored
-        )
+        # 🔐 Only bcrypt is accepted — MD5 is deprecated per security policy
+        if ptype != "bcrypt":
+            return {"status": 401, "code": "Error", "errorFlag": True,
+                    "error": ["Account uses deprecated password hashing. Please contact your administrator to reset your password."],
+                    "response": {"accessToken": ""}}
 
-        # 🔁 upgrade md5 → bcrypt
-        if valid and ptype != "bcrypt":
-            usersCollection.update_one({'_id': user['_id']}, {
-                "$set": {
-                    "password": bcrypt.hashpw(raw_password.encode(), bcrypt.gensalt()).decode(),
-                    "passwordType": "bcrypt"
-                }
-            })
+        valid = bcrypt.checkpw(raw_password.encode(), stored.encode())
 
         if not valid:
             return {"status":404,"code":"Error","errorFlag":True,
@@ -193,7 +185,10 @@ def login():
                     "response":{"accessToken":""}}
 
         token = jwt.encode(
-            {'message': {'iss':'','email':userName}},
+            {
+                'message': {'iss': '', 'email': userName},
+                'exp': datetime.now(tz=timezone.utc) + timedelta(hours=8)
+            },
             os.environ.get("SECRET_KEY"),
             algorithm='HS256'
         )
